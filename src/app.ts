@@ -56,6 +56,9 @@ export class App {
       },
       backspace: () => {
         this.inputBuffer = this.inputBuffer.slice(0, -1);
+        // Immediate prompt redraw with existing suggestions
+        this.render();
+        // Async fetch of new suggestions
         updateSuggestions();
       },
       enter: async () => {
@@ -66,7 +69,10 @@ export class App {
       },
       char: (evt) => {
         this.inputBuffer += evt.sequence;
-        updateSuggestions();
+        // Immediate prompt redraw with existing suggestions
+        this.render();
+        // Async fetch of new suggestions
+        // updateSuggestions();
       },
       up: () => {},
       down: () => {},
@@ -99,8 +105,10 @@ export class App {
   private async runCommand(cmd: string) {
     const { yellow, reset } = this.terminal.color;
     if (!cmd) {
-      // Re-render prompt without running anything
-      this.render();
+      // Log an empty line
+      this.terminal.renderBlock([">"]);
+      this.terminal.write("\n");
+      this.terminal.resetBlockTracking();
       return;
     }
 

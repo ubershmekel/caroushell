@@ -1,8 +1,29 @@
-import readline from 'readline';
+import readline from "readline";
+import { Writable } from "stream";
 
 export class Terminal {
   private out = process.stdout;
   private lastRenderedLines = 0;
+
+  private withCork<T>(fn: () => T): T {
+    // Cork is like "don't flush" and then "uncork" is like flush.
+    // This prevents a flicker on the screen when we move the cursor around to render.
+    // Node's Writable has cork/uncork; guard for environments that may not.
+    const w = this.out as unknown as Writable;
+    const hasCork =
+      typeof (w as Writable).cork === "function" &&
+      typeof (w as Writable).uncork === "function";
+    if (!hasCork) {
+      return fn();
+    }
+
+    (w as Writable).cork();
+    try {
+      return fn();
+    } finally {
+      (w as Writable).uncork();
+    }
+  }
 
   write(text: string) {
     this.out.write(text);
@@ -16,19 +37,22 @@ export class Terminal {
     this.write("\x1b[?25h");
   }
 
-  // Render a block of lines, replacing previous block
+  // Render a block of lines by clearing previous block (if any) and writing fresh
   renderBlock(lines: string[]) {
-    if (this.lastRenderedLines > 0) {
-      const up = this.lastRenderedLines - 1;
-      if (up > 0) readline.moveCursor(this.out, 0, -up);
-      readline.cursorTo(this.out, 0);
-      readline.clearScreenDown(this.out);
-    }
-    for (let i = 0; i < lines.length; i++) {
-      this.out.write(lines[i]);
-      if (i < lines.length - 1) this.out.write("\n");
-    }
-    this.lastRenderedLines = lines.length;
+    this.withCork(() => {
+      if (this.lastRenderedLines > 0) {
+        const up = this.lastRenderedLines - 1;
+        if (up > 0) readline.moveCursor(this.out, 0, -up);
+        readline.cursorTo(this.out, 0);
+        readline.clearScreenDown(this.out);
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        this.out.write(lines[i]);
+        if (i < lines.length - 1) this.out.write("\n");
+      }
+      this.lastRenderedLines = lines.length;
+    });
   }
 
   // When we have printed arbitrary output that is not managed by renderBlock,
