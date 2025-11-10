@@ -5,6 +5,7 @@ type GeminiCandidate = {
 };
 
 export class AISuggester implements Suggester {
+  prefix = "🤖";
   private apiKey: string | undefined;
   private model: string;
 
@@ -13,10 +14,10 @@ export class AISuggester implements Suggester {
     this.model = opts?.model || "gemini-2.5-flash-lite";
   }
 
-  async suggest(input: string, count: number): Promise<string[]> {
+  async suggest(input: string, maxDisplayed: number): Promise<string[]> {
     if (!this.apiKey || !input.trim()) return [];
 
-    const prompt = `You are a shell assistant. Given a partial shell input, suggest ${count} useful, concise shell commands that the user might run next. Return one suggestion per line, no numbering, no extra text. Partial input: "${input}"`;
+    const prompt = `You are a shell assistant. Given a partial shell input, suggest ${maxDisplayed} useful, concise shell commands that the user might run next. Return one suggestion per line, no numbering, no extra text. Partial input: "${input}"`;
 
     try {
       const fetchImpl: any = (globalThis as any).fetch;
@@ -49,7 +50,7 @@ export class AISuggester implements Suggester {
         .split(/\r?\n/)
         .map((s) => s.trim())
         .filter(Boolean)
-        .slice(0, count);
+        .slice(0, maxDisplayed);
     } catch {
       return [];
     }

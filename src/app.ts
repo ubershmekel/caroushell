@@ -1,4 +1,4 @@
-import { Terminal } from "./terminal";
+import { Terminal, colors } from "./terminal";
 import { Keyboard, KeyEvent } from "./keyboard";
 import { Carousel } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
@@ -18,7 +18,6 @@ export class App {
   keyboard: Keyboard;
   carousel: Carousel;
 
-  private inputBuffer = "";
   private history: HistorySuggester;
   private ai: AISuggester;
 
@@ -45,37 +44,54 @@ export class App {
     this.keyboard.start();
 
     const updateSuggestions = debounce(async () => {
-      await this.carousel.update(this.inputBuffer);
+      await this.carousel.update();
       this.render();
     }, 120);
 
     const handlers: Record<string, (evt: KeyEvent) => void | Promise<void>> = {
       "ctrl-c": () => this.exit(),
       "ctrl-d": () => {
-        if (this.inputBuffer.length === 0) this.exit();
+        if (this.carousel.getCurrentRow().length === 0) this.exit();
       },
       backspace: () => {
-        this.inputBuffer = this.inputBuffer.slice(0, -1);
+        this.carousel.setInputBuffer(
+          this.carousel.getCurrentRow().slice(0, -1)
+        );
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
         updateSuggestions();
       },
       enter: async () => {
-        const cmd = this.inputBuffer.trim();
-        this.inputBuffer = "";
+        const cmd = this.carousel.getCurrentRow().trim();
+        this.carousel.setInputBuffer("");
         await this.runCommand(cmd);
+        this.carousel.resetIndex();
         updateSuggestions();
       },
       char: (evt) => {
-        this.inputBuffer += evt.sequence;
+        this.carousel.setInputBuffer(
+          this.carousel.getCurrentRow() + evt.sequence
+        );
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
         // updateSuggestions();
       },
-      up: () => {},
-      down: () => {},
+      up: () => {
+        this.carousel.up();
+        this.carousel.render(
+          this.terminal,
+          `$> ${this.carousel.getCurrentRow()}`
+        );
+      },
+      down: () => {
+        this.carousel.down();
+        this.carousel.render(
+          this.terminal,
+          `$> ${this.carousel.getCurrentRow()}`
+        );
+      },
       left: () => {},
       right: () => {},
       home: () => {},
@@ -90,20 +106,20 @@ export class App {
     });
 
     // Initial draw
-    await this.carousel.update("");
+    await this.carousel.update();
     this.render();
   }
 
   private render() {
-    const { yellow, reset } = this.terminal.color;
-    const promptText = `$ ` + this.inputBuffer;
+    const { yellow, reset } = colors;
+    const promptText = `$> ` + this.carousel.getCurrentRow();
     this.carousel.render(this.terminal, promptText);
     // Ensure cursor is at end position (last line, end of prompt)
     // Nothing additional needed since we render full block each time.
   }
 
   private async runCommand(cmd: string) {
-    const { yellow, reset } = this.terminal.color;
+    const { yellow, reset } = colors;
     if (!cmd) {
       // Log an empty line
       this.terminal.renderBlock([">"]);

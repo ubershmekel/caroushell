@@ -1,6 +1,15 @@
 import readline from "readline";
 import { Writable } from "stream";
 
+// Color helpers
+export const colors = {
+  reset: "\x1b[0m",
+  white: "\x1b[37m",
+  brightWhite: "\x1b[97m",
+  dim: "\x1b[2m",
+  yellow: "\x1b[33m",
+};
+
 export class Terminal {
   private out = process.stdout;
   private lastRenderedLines = 0;
@@ -60,13 +69,4 @@ export class Terminal {
   resetBlockTracking() {
     this.lastRenderedLines = 0;
   }
-
-  // Color helpers
-  color = {
-    reset: "\x1b[0m",
-    white: "\x1b[37m",
-    brightWhite: "\x1b[97m",
-    dim: "\x1b[2m",
-    yellow: "\x1b[33m",
-  } as const;
 }

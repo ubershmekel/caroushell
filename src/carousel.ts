@@ -1,12 +1,15 @@
-import type { Suggester } from './history-suggester';
-import { Terminal } from './terminal';
+import type { Suggester } from "./history-suggester";
+import { Terminal, colors } from "./terminal";
 
 export class Carousel {
   private top: Suggester;
   private bottom: Suggester;
-  private topRows: number;
-  private bottomRows: number;
-  private latest = { top: [] as string[], bottom: [] as string[] };
+  private topRowCount: number;
+  private bottomRowCount: number;
+  private latestTop: string[] = [];
+  private latestBottom: string[] = [];
+  private index = 0;
+  private inputBuffer: string = "";
 
   constructor(opts: {
     top: Suggester;
@@ -16,40 +19,104 @@ export class Carousel {
   }) {
     this.top = opts.top;
     this.bottom = opts.bottom;
-    this.topRows = opts.topRows;
-    this.bottomRows = opts.bottomRows;
+    this.topRowCount = opts.topRows;
+    this.bottomRowCount = opts.bottomRows;
+    const empty = "---";
+    this.latestTop = Array(this.topRowCount).fill(empty);
+    this.latestBottom = Array(this.bottomRowCount).fill(empty);
   }
 
-  async update(input: string) {
-    const [top, bottom] = await Promise.all([
-      this.top.suggest(input, this.topRows),
-      this.bottom.suggest(input, this.bottomRows),
+  async update(input?: string) {
+    if (typeof input === "string") {
+      this.inputBuffer = input;
+    }
+    const [topResult, bottomResult] = await Promise.all([
+      this.top.suggest(this.inputBuffer, this.topRowCount),
+      this.bottom.suggest(this.inputBuffer, this.bottomRowCount),
     ]);
-    this.latest = { top, bottom };
-    return this.latest;
+    this.latestTop = topResult;
+    this.latestBottom = bottomResult;
+    return { topResult, bottomResult };
+  }
+
+  up() {
+    this.index += 1;
+    if (this.index >= this.latestTop.length) {
+      this.index = this.latestTop.length;
+    }
+  }
+
+  down() {
+    this.index -= 1;
+    if (-this.index >= this.latestBottom.length) {
+      this.index = -this.latestBottom.length;
+    }
+  }
+
+  getRow(rowIndex: number): string {
+    if (rowIndex < 0) {
+      const bottomIndex = -rowIndex + 1;
+      return this.latestBottom[bottomIndex] || "";
+    }
+    if (rowIndex === 0) {
+      return this.inputBuffer;
+    }
+    if (rowIndex > 0) {
+      const topIndex = rowIndex - 1;
+      return this.latestTop[topIndex] || "";
+    }
+    return "";
+  }
+
+  getPrefixByIndex(index: number): string {
+    if (index < 0) {
+      return this.bottom.prefix;
+    }
+    if (index > 0) {
+      return this.top.prefix;
+    }
+    return "$> ";
+  }
+
+  getFormattedRow(rowIndex: number): string {
+    const rowStr = this.getRow(rowIndex);
+    let prefix = this.getPrefixByIndex(rowIndex);
+    const { brightWhite, reset, dim } = colors;
+    let color = dim;
+    if (this.index === rowIndex) {
+      color = brightWhite;
+      if (rowIndex !== 0) {
+        prefix = "> ";
+      }
+    }
+
+    return `${color}${prefix}${rowStr}${reset}`;
+  }
+
+  getCurrentRow(): string {
+    return this.getRow(this.index);
+  }
+
+  setInputBuffer(value: string) {
+    this.inputBuffer = value;
+  }
+
+  resetIndex() {
+    this.index = 0;
   }
 
   render(term: Terminal, promptLine: string) {
     const width = process.stdout.columns || 80;
-    const { brightWhite, reset, dim } = term.color;
+    const { brightWhite, reset, dim } = colors;
     const lines: string[] = [];
 
-    // Top suggestions (dim white)
-    for (let i = 0; i < this.topRows; i++) {
-      const text = (this.latest.top[i] || '').slice(0, width - 2);
-      lines.push(`${dim}${text}${reset}`);
-    }
-
-    // Prompt line
-    lines.push(`${brightWhite}${promptLine}${reset}`);
-
-    // Bottom suggestions (dim white)
-    for (let i = 0; i < this.bottomRows; i++) {
-      const text = (this.latest.bottom[i] || '').slice(0, width - 2);
-      lines.push(`${dim}${text}${reset}`);
+    const start = this.index + this.topRowCount;
+    const rowCount = this.topRowCount + this.bottomRowCount + 1;
+    const end = start - rowCount;
+    for (let i = start; i > end; i--) {
+      lines.push(this.getFormattedRow(i).slice(0, width - 2));
     }
 
     term.renderBlock(lines);
   }
 }
-
