@@ -1,11 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
-
-export interface Suggester {
-  init?(): Promise<void> | void;
-  suggest(input: string, maxDisplayed: number): Promise<string[]>;
-  prefix: string;
-}
+import type { Carousel, Suggester } from "./carousel";
+import { configFolder } from "./config";
 
 export class HistorySuggester implements Suggester {
   prefix = "⌛";
@@ -16,7 +12,7 @@ export class HistorySuggester implements Suggester {
   constructor(filePath?: string) {
     const home = process.env.HOME || process.env.USERPROFILE || process.cwd();
     // Default path: ~/.caroushell/history
-    this.filePath = filePath || path.join(home, ".caroushell", "history");
+    this.filePath = filePath || configFolder("history");
   }
 
   async init() {
@@ -44,7 +40,8 @@ export class HistorySuggester implements Suggester {
     }
   }
 
-  async suggest(input: string, maxDisplayed: number): Promise<string[]> {
+  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
+    const input = carousel.getCurrentRow();
     if (!input) {
       return this.items.reverse();
     }
@@ -55,5 +52,23 @@ export class HistorySuggester implements Suggester {
       if (it.toLowerCase().includes(q)) matched.push(it);
     }
     return matched;
+  }
+
+  descriptionForAi(): string {
+    const lines = [];
+    const maxHistoryLines = 20;
+    const start = Math.max(0, this.items.length - maxHistoryLines);
+    const end = this.items.length - 1;
+    const reverseSlice = this.items.slice(start, end).reverse();
+    if (reverseSlice.length > 0) {
+      lines.push(`The most recent command is: "${reverseSlice[0]}"`);
+    }
+    if (reverseSlice.length > 1) {
+      lines.push("The most recent commands are (from recent to oldest):");
+      for (let i = 0; i < reverseSlice.length; i++) {
+        lines.push(`  ${i + 1}. ${reverseSlice[i]}`);
+      }
+    }
+    return lines.join("\n");
   }
 }

@@ -6,6 +6,7 @@ import { AISuggester } from "./ai-suggester";
 import { spawn } from "child_process";
 
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
+  // Debounce function to limit the rate at which a function can fire
   let t: NodeJS.Timeout | null = null;
   return (...args: Parameters<T>) => {
     if (t) clearTimeout(t);
@@ -31,11 +32,13 @@ export class App {
       bottom: this.ai,
       topRows: 2,
       bottomRows: 2,
+      terminal: this.terminal,
     });
   }
 
   async init() {
-    await this.history.init?.();
+    await this.history.init();
+    await this.ai.init();
   }
 
   async run() {
@@ -44,8 +47,7 @@ export class App {
     this.keyboard.start();
 
     const updateSuggestions = debounce(async () => {
-      await this.carousel.update();
-      this.render();
+      await this.carousel.updateSuggestions();
     }, 120);
 
     const handlers: Record<string, (evt: KeyEvent) => void | Promise<void>> = {
@@ -80,17 +82,11 @@ export class App {
       },
       up: () => {
         this.carousel.up();
-        this.carousel.render(
-          this.terminal,
-          `$> ${this.carousel.getCurrentRow()}`
-        );
+        this.render();
       },
       down: () => {
         this.carousel.down();
-        this.carousel.render(
-          this.terminal,
-          `$> ${this.carousel.getCurrentRow()}`
-        );
+        this.render();
       },
       left: () => {},
       right: () => {},
@@ -106,14 +102,12 @@ export class App {
     });
 
     // Initial draw
-    await this.carousel.update();
     this.render();
+    await this.carousel.updateSuggestions();
   }
 
   private render() {
-    const { yellow, reset } = colors;
-    const promptText = `$> ` + this.carousel.getCurrentRow();
-    this.carousel.render(this.terminal, promptText);
+    this.carousel.render();
     // Ensure cursor is at end position (last line, end of prompt)
     // Nothing additional needed since we render full block each time.
   }

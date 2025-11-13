@@ -1,5 +1,12 @@
-import type { Suggester } from "./history-suggester";
+import { logLine } from "./logs";
 import { Terminal, colors } from "./terminal";
+
+export interface Suggester {
+  prefix: string;
+  init(): Promise<void>;
+  suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]>;
+  descriptionForAi(): string;
+}
 
 export class Carousel {
   private top: Suggester;
@@ -10,13 +17,16 @@ export class Carousel {
   private latestBottom: string[] = [];
   private index = 0;
   private inputBuffer: string = "";
+  private terminal: Terminal;
 
   constructor(opts: {
     top: Suggester;
     bottom: Suggester;
     topRows: number;
     bottomRows: number;
+    terminal: Terminal;
   }) {
+    this.terminal = opts.terminal;
     this.top = opts.top;
     this.bottom = opts.bottom;
     this.topRowCount = opts.topRows;
@@ -26,17 +36,20 @@ export class Carousel {
     this.latestBottom = Array(this.bottomRowCount).fill(empty);
   }
 
-  async update(input?: string) {
+  async updateSuggestions(input?: string) {
     if (typeof input === "string") {
       this.inputBuffer = input;
     }
-    const [topResult, bottomResult] = await Promise.all([
-      this.top.suggest(this.inputBuffer, this.topRowCount),
-      this.bottom.suggest(this.inputBuffer, this.bottomRowCount),
-    ]);
-    this.latestTop = topResult;
-    this.latestBottom = bottomResult;
-    return { topResult, bottomResult };
+    const topPromise = this.top.suggest(this, this.topRowCount);
+    const bottomPromise = this.bottom.suggest(this, this.bottomRowCount);
+    topPromise.then((r) => {
+      this.latestTop = r;
+      this.render();
+    });
+    bottomPromise.then((r) => {
+      this.latestBottom = r;
+      this.render();
+    });
   }
 
   up() {
@@ -55,7 +68,7 @@ export class Carousel {
 
   getRow(rowIndex: number): string {
     if (rowIndex < 0) {
-      const bottomIndex = -rowIndex + 1;
+      const bottomIndex = -rowIndex - 1;
       return this.latestBottom[bottomIndex] || "";
     }
     if (rowIndex === 0) {
@@ -105,7 +118,9 @@ export class Carousel {
     this.index = 0;
   }
 
-  render(term: Terminal, promptLine: string) {
+  render() {
+    logLine("Rendering carousel");
+    // Draw all the lines
     const width = process.stdout.columns || 80;
     const { brightWhite, reset, dim } = colors;
     const lines: string[] = [];
@@ -117,6 +132,10 @@ export class Carousel {
       lines.push(this.getFormattedRow(i).slice(0, width - 2));
     }
 
-    term.renderBlock(lines);
+    this.terminal.renderBlock(lines);
+  }
+
+  getSuggesters(): Suggester[] {
+    return [this.top, this.bottom];
   }
 }
