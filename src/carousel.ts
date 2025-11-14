@@ -160,6 +160,45 @@ export class Carousel {
     this.inputCursor += 1;
   }
 
+  moveCursorHome() {
+    this.adoptSelectionIntoInput();
+    this.inputCursor = 0;
+  }
+
+  moveCursorEnd() {
+    this.adoptSelectionIntoInput();
+    this.inputCursor = this.inputBuffer.length;
+  }
+
+  deleteAtCursor() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor >= this.inputBuffer.length) return;
+    const before = this.inputBuffer.slice(0, this.inputCursor);
+    const after = this.inputBuffer.slice(this.inputCursor + 1);
+    this.inputBuffer = `${before}${after}`;
+  }
+
+  deleteToLineStart() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor === 0) return;
+    const after = this.inputBuffer.slice(this.inputCursor);
+    this.setInputBuffer(after, 0);
+  }
+
+  clearInput() {
+    this.adoptSelectionIntoInput();
+    this.setInputBuffer("", 0);
+    this.index = 0;
+  }
+
+  hasInput(): boolean {
+    return this.inputBuffer.length > 0;
+  }
+
+  isPromptRowSelected(): boolean {
+    return this.index === 0;
+  }
+
   private getPromptCursorColumn(): number {
     const prefix = this.getPrefixByIndex(0);
     return prefix.length + this.inputCursor;

@@ -13,6 +13,7 @@ const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {
   // Control keys
   '\u0003': { name: 'ctrl-c', ctrl: true }, // ^C
   '\u0004': { name: 'ctrl-d', ctrl: true }, // ^D
+  '\u0015': { name: 'ctrl-u', ctrl: true }, // ^U
   '\r': { name: 'enter' },
   '\n': { name: 'enter' },
   '\u007f': { name: 'backspace' }, // DEL

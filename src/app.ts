@@ -50,9 +50,34 @@ export class App {
     }, 300);
 
     const handlers: Record<string, (evt: KeyEvent) => void | Promise<void>> = {
-      "ctrl-c": () => this.exit(),
+      "ctrl-c": () => {
+        if (
+          this.carousel.isPromptRowSelected() &&
+          !this.carousel.hasInput()
+        ) {
+          this.exit();
+          return;
+        }
+        this.carousel.clearInput();
+        this.render();
+        updateSuggestions();
+      },
       "ctrl-d": () => {
-        if (this.carousel.getCurrentRow().length === 0) this.exit();
+        if (
+          this.carousel.isPromptRowSelected() &&
+          !this.carousel.hasInput()
+        ) {
+          this.exit();
+          return;
+        }
+        this.carousel.deleteAtCursor();
+        this.render();
+        updateSuggestions();
+      },
+      "ctrl-u": () => {
+        this.carousel.deleteToLineStart();
+        this.render();
+        updateSuggestions();
       },
       backspace: () => {
         this.carousel.deleteBeforeCursor();
@@ -91,9 +116,19 @@ export class App {
         this.carousel.moveCursorRight();
         this.render();
       },
-      home: () => {},
-      end: () => {},
-      delete: () => {},
+      home: () => {
+        this.carousel.moveCursorHome();
+        this.render();
+      },
+      end: () => {
+        this.carousel.moveCursorEnd();
+        this.render();
+      },
+      delete: () => {
+        this.carousel.deleteAtCursor();
+        this.render();
+        updateSuggestions();
+      },
       escape: () => {},
     };
 
