@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { App } from "./app";
 import { ensureLogFolderExists, logLine } from "./logs";
 
