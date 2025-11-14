@@ -3,7 +3,7 @@ import { Keyboard, KeyEvent } from "./keyboard";
 import { Carousel } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
 import { AISuggester } from "./ai-suggester";
-import { spawn } from "child_process";
+import { runUserCommand } from "./spawner";
 
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
   // Debounce function to limit the rate at which a function can fire
@@ -166,21 +166,7 @@ export class App {
 
     await this.history.add(cmd);
 
-    // Spawn shell
-    const isWin = process.platform === "win32";
-    const proc = spawn(
-      isWin ? "cmd.exe" : "/bin/bash",
-      [isWin ? "/c" : "-lc", cmd],
-      {
-        stdio: ["ignore", "pipe", "pipe"],
-      }
-    );
-
-    await new Promise<void>((resolve) => {
-      proc.stdout.on("data", (d) => process.stdout.write(d));
-      proc.stderr.on("data", (d) => process.stderr.write(d));
-      proc.on("close", () => resolve());
-    });
+    await runUserCommand(cmd);
 
     // After arbitrary output, reset render block tracking
     this.terminal.resetBlockTracking();

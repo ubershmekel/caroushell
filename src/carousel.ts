@@ -103,6 +103,10 @@ export class Carousel {
         prefix = "> ";
       }
     }
+    if (rowIndex !== 0 && !rowStr) {
+      // The edge of the top or bottom panel
+      prefix = "---";
+    }
 
     return `${color}${prefix}${rowStr}${reset}`;
   }
