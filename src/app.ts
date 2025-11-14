@@ -43,12 +43,11 @@ export class App {
 
   async run() {
     await this.init();
-    this.terminal.hideCursor();
     this.keyboard.start();
 
     const updateSuggestions = debounce(async () => {
       await this.carousel.updateSuggestions();
-    }, 120);
+    }, 300);
 
     const handlers: Record<string, (evt: KeyEvent) => void | Promise<void>> = {
       "ctrl-c": () => this.exit(),
@@ -56,9 +55,7 @@ export class App {
         if (this.carousel.getCurrentRow().length === 0) this.exit();
       },
       backspace: () => {
-        this.carousel.setInputBuffer(
-          this.carousel.getCurrentRow().slice(0, -1)
-        );
+        this.carousel.deleteBeforeCursor();
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
@@ -66,19 +63,17 @@ export class App {
       },
       enter: async () => {
         const cmd = this.carousel.getCurrentRow().trim();
-        this.carousel.setInputBuffer("");
+        this.carousel.setInputBuffer("", 0);
         await this.runCommand(cmd);
         this.carousel.resetIndex();
         updateSuggestions();
       },
       char: (evt) => {
-        this.carousel.setInputBuffer(
-          this.carousel.getCurrentRow() + evt.sequence
-        );
+        this.carousel.insertAtCursor(evt.sequence);
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
-        // updateSuggestions();
+        updateSuggestions();
       },
       up: () => {
         this.carousel.up();
@@ -88,8 +83,14 @@ export class App {
         this.carousel.down();
         this.render();
       },
-      left: () => {},
-      right: () => {},
+      left: () => {
+        this.carousel.moveCursorLeft();
+        this.render();
+      },
+      right: () => {
+        this.carousel.moveCursorRight();
+        this.render();
+      },
       home: () => {},
       end: () => {},
       delete: () => {},
@@ -108,8 +109,7 @@ export class App {
 
   private render() {
     this.carousel.render();
-    // Ensure cursor is at end position (last line, end of prompt)
-    // Nothing additional needed since we render full block each time.
+    // Cursor placement handled inside carousel render.
   }
 
   private async runCommand(cmd: string) {
@@ -153,7 +153,6 @@ export class App {
 
   private exit() {
     this.keyboard.stop();
-    this.terminal.showCursor();
     process.exit(0);
   }
 }

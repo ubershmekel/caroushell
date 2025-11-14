@@ -17,6 +17,7 @@ export class Carousel {
   private latestBottom: string[] = [];
   private index = 0;
   private inputBuffer: string = "";
+  private inputCursor = 0;
   private terminal: Terminal;
 
   constructor(opts: {
@@ -38,7 +39,7 @@ export class Carousel {
 
   async updateSuggestions(input?: string) {
     if (typeof input === "string") {
-      this.inputBuffer = input;
+      this.setInputBuffer(input);
     }
     const topPromise = this.top.suggest(this, this.topRowCount);
     const bottomPromise = this.bottom.suggest(this, this.bottomRowCount);
@@ -110,12 +111,58 @@ export class Carousel {
     return this.getRow(this.index);
   }
 
-  setInputBuffer(value: string) {
+  setInputBuffer(value: string, cursorPos: number = value.length) {
     this.inputBuffer = value;
+    this.inputCursor = Math.max(
+      0,
+      Math.min(cursorPos, this.inputBuffer.length)
+    );
   }
 
   resetIndex() {
     this.index = 0;
+  }
+
+  private adoptSelectionIntoInput() {
+    if (this.index === 0) return;
+    const current = this.getRow(this.index);
+    this.setInputBuffer(current, current.length);
+    this.index = 0;
+  }
+
+  insertAtCursor(text: string) {
+    if (!text) return;
+    this.adoptSelectionIntoInput();
+    const before = this.inputBuffer.slice(0, this.inputCursor);
+    const after = this.inputBuffer.slice(this.inputCursor);
+    this.inputBuffer = `${before}${text}${after}`;
+    this.inputCursor += text.length;
+  }
+
+  deleteBeforeCursor() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor === 0) return;
+    const before = this.inputBuffer.slice(0, this.inputCursor - 1);
+    const after = this.inputBuffer.slice(this.inputCursor);
+    this.inputBuffer = `${before}${after}`;
+    this.inputCursor -= 1;
+  }
+
+  moveCursorLeft() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor === 0) return;
+    this.inputCursor -= 1;
+  }
+
+  moveCursorRight() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor >= this.inputBuffer.length) return;
+    this.inputCursor += 1;
+  }
+
+  private getPromptCursorColumn(): number {
+    const prefix = this.getPrefixByIndex(0);
+    return prefix.length + this.inputCursor;
   }
 
   render() {
@@ -123,16 +170,26 @@ export class Carousel {
     // Draw all the lines
     const width = process.stdout.columns || 80;
     const { brightWhite, reset, dim } = colors;
-    const lines: string[] = [];
+    const lines: { text: string; rowIndex: number }[] = [];
 
     const start = this.index + this.topRowCount;
     const rowCount = this.topRowCount + this.bottomRowCount + 1;
     const end = start - rowCount;
     for (let i = start; i > end; i--) {
-      lines.push(this.getFormattedRow(i).slice(0, width - 2));
+      lines.push({
+        rowIndex: i,
+        text: this.getFormattedRow(i).slice(0, width - 2),
+      });
     }
 
-    this.terminal.renderBlock(lines);
+    const promptLineIndex = lines.findIndex((line) => line.rowIndex === 0);
+    const cursorRow = this.topRowCount;
+    const cursorCol = this.getPromptCursorColumn();
+    this.terminal.renderBlock(
+      lines.map((line) => line.text),
+      cursorRow,
+      cursorCol
+    );
   }
 
   getSuggesters(): Suggester[] {

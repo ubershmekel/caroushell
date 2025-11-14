@@ -12,7 +12,19 @@ export const colors = {
 
 export class Terminal {
   private out = process.stdout;
-  private lastRenderedLines = 0;
+  private activeRows = 0;
+  private cursorRow = 0;
+  private cursorCol = 0;
+
+  private moveCursorToTopOfBlock() {
+    if (this.activeRows === 0) return;
+    readline.cursorTo(this.out, 0);
+    if (this.cursorRow > 0) {
+      readline.moveCursor(this.out, 0, -this.cursorRow);
+    }
+    this.cursorRow = 0;
+    this.cursorCol = 0;
+  }
 
   private withCork<T>(fn: () => T): T {
     // Cork is like "don't flush" and then "uncork" is like flush.
@@ -47,11 +59,10 @@ export class Terminal {
   }
 
   // Render a block of lines by clearing previous block (if any) and writing fresh
-  renderBlock(lines: string[]) {
+  renderBlock(lines: string[], cursorRow?: number, cursorCol?: number) {
     this.withCork(() => {
-      if (this.lastRenderedLines > 0) {
-        const up = this.lastRenderedLines - 1;
-        if (up > 0) readline.moveCursor(this.out, 0, -up);
+      this.moveCursorToTopOfBlock();
+      if (this.activeRows > 0) {
         readline.cursorTo(this.out, 0);
         readline.clearScreenDown(this.out);
       }
@@ -60,13 +71,44 @@ export class Terminal {
         this.out.write(lines[i]);
         if (i < lines.length - 1) this.out.write("\n");
       }
-      this.lastRenderedLines = lines.length;
+      this.activeRows = lines.length;
+      this.cursorRow = Math.max(0, this.activeRows - 1);
+      const lastLine = lines[this.cursorRow] || "";
+      this.cursorCol = lastLine.length;
+      const needsPosition =
+        typeof cursorRow === "number" || typeof cursorCol === "number";
+      if (needsPosition) {
+        const targetRow =
+          typeof cursorRow === "number"
+            ? Math.min(Math.max(cursorRow, 0), Math.max(0, this.activeRows - 1))
+            : this.cursorRow;
+        const targetCol = Math.max(0, cursorCol ?? this.cursorCol);
+        this.moveCursorTo(targetRow, targetCol);
+      }
     });
+  }
+
+  moveCursorTo(lineIndex: number, column: number) {
+    if (this.activeRows === 0) return;
+    const safeLine = Math.min(
+      Math.max(lineIndex, 0),
+      Math.max(0, this.activeRows - 1)
+    );
+    const safeColumn = Math.max(0, column);
+    const rowDelta = safeLine - this.cursorRow;
+    if (rowDelta !== 0) {
+      readline.moveCursor(this.out, 0, rowDelta);
+    }
+    readline.cursorTo(this.out, safeColumn);
+    this.cursorRow = safeLine;
+    this.cursorCol = safeColumn;
   }
 
   // When we have printed arbitrary output that is not managed by renderBlock,
   // reset internal line tracking so the next render starts fresh.
   resetBlockTracking() {
-    this.lastRenderedLines = 0;
+    this.activeRows = 0;
+    this.cursorRow = 0;
+    this.cursorCol = 0;
   }
 }
