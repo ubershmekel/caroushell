@@ -1,14 +1,14 @@
 # Caroushell
 
 Caroushell is an interactive terminal carousel that suggests commands from your
-history, AI prompts, and configuration snippets so you can pick the next shell
-command without leaving the keyboard.
+history, and AI suggestions as you type.
 
 ## Features
 
-- Dual-pane carousel that combines history-based and AI-generated command
-  suggestions.
-- Runs the selected command directly in your current terminal session.
+- The top panel of the carousel shows history
+- The bottom panel of the carousel shows AI-generated command suggestions.
+- Go up and down the carousel with arrow keys.
+- Press `Enter` to run the highlighted command.
 - Logs activity under `~/.caroushell/logs` for easy troubleshooting.
 - Extensible config file (`~/.caroushell/config.json`) so you can point the CLI
   at different API keys or settings.
@@ -58,9 +58,9 @@ need to debug AI suggestions or the terminal renderer. Configuration lives at
 
 ```bash
 npm install
-npm run dev        # tsx watch mode
-npm run build      # emits dist/
-npm run test:generate
+npm run dev
+npm run build
+npm run test:generate  # tests ai text generation
 npm publish --dry-run  # verify package contents before publishing
 ```
 
