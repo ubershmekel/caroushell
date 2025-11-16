@@ -182,6 +182,8 @@ export class App {
   }
 
   private exit() {
+    // Clear terminal contents before shutting down to leave a clean screen.
+    this.terminal.renderBlock([]);
     this.keyboard.stop();
     process.exit(0);
   }
