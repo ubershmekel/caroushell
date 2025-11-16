@@ -1,13 +1,13 @@
 const tseslint = require("@typescript-eslint/eslint-plugin");
 const tsParser = require("@typescript-eslint/parser");
 
-/** @type {import("eslint").Linter.FlatConfig[]} */
+/** @type {import("eslint").Linter.Config[]} */
 module.exports = [
   {
     ignores: ["dist"],
   },
   {
-    files: ["src/**/*.ts"],
+    files: ["src/**/*.ts", "scripts/**/*.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
