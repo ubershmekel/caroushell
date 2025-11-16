@@ -77,11 +77,7 @@ export async function generateContent(
     const out = await extractText(await res.json());
     const text = typeof out === "string" ? out : "";
     const duration = Date.now() - start;
-    try {
-      await logLine(`AI duration: ${duration} ms`);
-    } catch {
-      // best-effort logging; ignore failures
-    }
+    logLine(`AI duration: ${duration} ms`);
     return text;
   } catch (err: any) {
     return "ai error: " + err.message;

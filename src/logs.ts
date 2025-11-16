@@ -22,15 +22,19 @@ function timestamp(date = new Date()): string {
   return date.toISOString();
 }
 
-export async function logLine(
-  message: string,
-  when = new Date()
-): Promise<void> {
+async function writeLogLine(message: string, when: Date): Promise<void> {
   const dir = getLogDir();
   await ensureDir(dir);
   const file = getLogFilePath(when);
   const line = `[${timestamp(when)}] ${message}\n`;
   await fs.appendFile(file, line, "utf8");
+}
+
+export function logLine(message: string, when = new Date()): void {
+  // Fire-and-forget logging so callers do not need to await.
+  void writeLogLine(message, when).catch((err) => {
+    console.error("CRITICAL: Logger itself failed:", err.message);
+  });
 }
 
 // Ensure the ~/.caroushell/logs folder exists early in app startup
