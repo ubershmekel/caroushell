@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "tsx src/main.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.release.json",
     "prepare": "npm run build",
     "start": "node dist/main.js",
     "test:generate": "tsx src/test-generate.ts",
