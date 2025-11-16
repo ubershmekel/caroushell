@@ -43,11 +43,11 @@ export class Carousel {
     }
     const topPromise = this.top.suggest(this, this.topRowCount);
     const bottomPromise = this.bottom.suggest(this, this.bottomRowCount);
-    topPromise.then((r) => {
+    void topPromise.then((r) => {
       this.latestTop = r;
       this.render();
     });
-    bottomPromise.then((r) => {
+    void bottomPromise.then((r) => {
       this.latestBottom = r;
       this.render();
     });

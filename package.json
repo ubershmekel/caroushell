@@ -1,6 +1,6 @@
 {
   "name": "caroushell",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Terminal carousel that suggests commands from history, config, and AI.",
   "type": "commonjs",
   "main": "dist/main.js",
@@ -17,7 +17,9 @@
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
     "start": "node dist/main.js",
-    "test:generate": "tsx src/test-generate.ts"
+    "test:generate": "tsx src/test-generate.ts",
+    "lint": "eslint . --ext .ts",
+    "release": "tsx scripts/release.ts"
   },
   "keywords": [
     "cli",
