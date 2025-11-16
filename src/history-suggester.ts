@@ -44,15 +44,21 @@ export class HistorySuggester implements Suggester {
   async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
     const input = carousel.getCurrentRow();
     if (!input) {
+      // this.items 0 index is oldest
       return this.items.reverse();
     }
     const q = input.toLowerCase();
     const matched = [] as string[];
+    // iterate in reverse so we skip older duplicates
+    const seen = new Set<string>();
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
-      if (it.toLowerCase().includes(q)) matched.push(it);
+      if (it.toLowerCase().includes(q) && !seen.has(it)) {
+        seen.add(it);
+        matched.push(it);
+      }
     }
-    return matched;
+    return matched.reverse();
   }
 
   descriptionForAi(): string {
