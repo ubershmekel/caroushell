@@ -74,7 +74,7 @@ export async function generateContent(
     if (!res.ok) {
       return "ai fetch error: " + res.statusText;
     }
-    const out = await extractText(await res.json()); //, request.provider);
+    const out = await extractText(await res.json());
     const text = typeof out === "string" ? out : "";
     const duration = Date.now() - start;
     try {
@@ -151,7 +151,7 @@ function buildRequest(args: BuildRequestArgs): BuiltRequest {
   };
 }
 
-async function extractText(json: any, provider?: Provider): Promise<string> {
+async function extractText(json: any): Promise<string> {
   const typed = json as {
     choices?: { message?: { content?: string } }[];
   };

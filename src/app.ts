@@ -21,6 +21,7 @@ export class App {
 
   private history: HistorySuggester;
   private ai: AISuggester;
+  private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
 
   constructor() {
     this.terminal = new Terminal();
@@ -34,71 +35,55 @@ export class App {
       bottomRows: 2,
       terminal: this.terminal,
     });
-  }
 
-  async init() {
-    await this.history.init();
-    await this.ai.init();
-  }
-
-  async run() {
-    await this.init();
-    this.keyboard.start();
-
-    const updateSuggestions = debounce(async () => {
+    this.queueUpdateSuggestions = debounce(async () => {
       await this.carousel.updateSuggestions();
     }, 300);
 
-    const handlers: Record<string, (evt: KeyEvent) => void | Promise<void>> = {
+    this.handlers = {
       "ctrl-c": () => {
-        if (
-          this.carousel.isPromptRowSelected() &&
-          !this.carousel.hasInput()
-        ) {
+        if (this.carousel.isPromptRowSelected() && !this.carousel.hasInput()) {
           this.exit();
           return;
         }
         this.carousel.clearInput();
         this.render();
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       "ctrl-d": () => {
-        if (
-          this.carousel.isPromptRowSelected() &&
-          !this.carousel.hasInput()
-        ) {
+        if (this.carousel.isPromptRowSelected() && !this.carousel.hasInput()) {
           this.exit();
           return;
         }
         this.carousel.deleteAtCursor();
         this.render();
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       "ctrl-u": () => {
         this.carousel.deleteToLineStart();
         this.render();
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       backspace: () => {
         this.carousel.deleteBeforeCursor();
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       enter: async () => {
         const cmd = this.carousel.getCurrentRow().trim();
         this.carousel.setInputBuffer("", 0);
         await this.runCommand(cmd);
         this.carousel.resetIndex();
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       char: (evt) => {
         this.carousel.insertAtCursor(evt.sequence);
         // Immediate prompt redraw with existing suggestions
         this.render();
         // Async fetch of new suggestions
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       up: () => {
         this.carousel.up();
@@ -127,20 +112,38 @@ export class App {
       delete: () => {
         this.carousel.deleteAtCursor();
         this.render();
-        updateSuggestions();
+        this.queueUpdateSuggestions();
       },
       escape: () => {},
     };
+  }
 
-    this.keyboard.on("key", async (evt: KeyEvent) => {
-      const fn = handlers[evt.name];
-      if (fn) await fn(evt);
+  async init() {
+    await this.history.init();
+    await this.ai.init();
+  }
+
+  async run() {
+    await this.init();
+    this.keyboard.start();
+
+    this.keyboard.on("key", (evt: KeyEvent) => {
+      void this.handleKey(evt);
     });
 
     // Initial draw
     this.render();
     await this.carousel.updateSuggestions();
   }
+
+  async handleKey(evt: KeyEvent) {
+    const fn = this.handlers[evt.name];
+    if (fn) {
+      await fn(evt);
+    }
+  }
+
+  queueUpdateSuggestions() {}
 
   private render() {
     this.carousel.render();
