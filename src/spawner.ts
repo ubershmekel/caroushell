@@ -62,5 +62,7 @@ export async function runUserCommand(command: string): Promise<boolean> {
     proc.on("error", reject);
     proc.on("close", () => resolve());
   });
-  return proc.exitCode === 0;
+  // Why save failed commands? Well eg sometimes we want to run a test
+  // many times until we fix it.
+  return true;
 }

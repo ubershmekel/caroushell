@@ -169,8 +169,8 @@ export class App {
 
     this.keyboard.pause();
     try {
-      const success = await runUserCommand(cmd);
-      if (success) {
+      const storeInHistory = await runUserCommand(cmd);
+      if (storeInHistory) {
         await this.history.add(cmd);
       }
     } finally {
