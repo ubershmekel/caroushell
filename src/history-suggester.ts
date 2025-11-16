@@ -21,7 +21,7 @@ export class HistorySuggester implements Suggester {
     } catch {}
     try {
       const data = await fs.readFile(this.filePath, "utf8");
-      this.items = data.split(/\r?\n/).filter(Boolean);
+      this.items = this.parseHistory(data);
     } catch {
       this.items = [];
     }
@@ -29,36 +29,40 @@ export class HistorySuggester implements Suggester {
 
   async add(command: string) {
     if (!command.trim()) return;
-    if (this.items[this.items.length - 1] === command) {
+    if (this.items[0] === command) {
       // Deduplicate recent duplicate
       return;
     }
-    this.items.push(command);
-    if (this.items.length > this.maxItems) this.items.shift();
+    this.items.unshift(command);
+    if (this.items.length > this.maxItems) this.items.pop();
     await fs
       .mkdir(path.dirname(this.filePath), { recursive: true })
       .catch(() => {});
-    await fs.writeFile(this.filePath, this.items.join("\n"), "utf8");
+    await fs.appendFile(
+      this.filePath,
+      this.serializeHistoryEntry(command),
+      "utf8"
+    );
   }
 
   async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
     const input = carousel.getCurrentRow();
     if (!input) {
-      // this.items 0 index is oldest
-      return this.items.reverse();
+      // this.items 0 index is newest
+      return this.items;
     }
     const q = input.toLowerCase();
     const matched = [] as string[];
-    // iterate in reverse so we skip older duplicates
+    // iterate from newest to oldest so we skip older duplicates
     const seen = new Set<string>();
-    for (let i = this.items.length - 1; i >= 0; i--) {
+    for (let i = 0; i < this.items.length; i++) {
       const it = this.items[i];
       if (it.toLowerCase().includes(q) && !seen.has(it)) {
         seen.add(it);
         matched.push(it);
       }
     }
-    return matched.reverse();
+    return matched;
   }
 
   descriptionForAi(): string {
@@ -77,5 +81,35 @@ export class HistorySuggester implements Suggester {
       }
     }
     return lines.join("\n");
+  }
+
+  private parseHistory(data: string): string[] {
+    const entries: string[] = [];
+    let currentLines: string[] = [];
+
+    const flush = () => {
+      if (currentLines.length > 0) {
+        entries.push(currentLines.join("\n"));
+        currentLines = [];
+      }
+    };
+
+    const rows = data.split(/\n/);
+    for (const rawLine of rows) {
+      const line = rawLine.replace(/\r$/, "");
+      if (line.startsWith("+")) {
+        currentLines.push(line.slice(1));
+      } else {
+        flush();
+      }
+    }
+    flush();
+    return entries.slice(-this.maxItems).reverse();
+  }
+
+  private serializeHistoryEntry(command: string): string {
+    const timestamp = new Date().toISOString();
+    const lines = command.split("\n").map((line) => `+${line}`);
+    return `\n# ${timestamp}\n${lines.join("\n")}\n`;
   }
 }
