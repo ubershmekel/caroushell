@@ -16,6 +16,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  console.error("Caroushell uncaught error:");
   console.error(err);
   process.exit(1);
 });

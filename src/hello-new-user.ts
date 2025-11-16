@@ -110,11 +110,11 @@ export async function runHelloNewUserFlow(
     model,
   };
 
-  await fs.writeFile(
-    configPath,
-    JSON.stringify(config, null, 2) + "\n",
-    "utf8"
-  );
+  const tomlBody = Object.entries(config)
+    .map(([key, value]) => `${key} = ${JSON.stringify(value)}`)
+    .join("\n");
+
+  await fs.writeFile(configPath, tomlBody + "\n", "utf8");
 
   console.log(`\nSaved config to ${configPath}`);
   console.log(

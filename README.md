@@ -10,22 +10,26 @@ history, and AI suggestions as you type.
 - Go up and down the carousel with arrow keys.
 - Press `Enter` to run the highlighted command.
 - Logs activity under `~/.caroushell/logs` for easy troubleshooting.
-- Extensible config file (`~/.caroushell/config.json`) so you can point the CLI
+- Extensible config file (`~/.caroushell/config.toml`) so you can point the CLI
   at different AI providers.
 
 ## Requirements
 
 - Node.js 18 or newer.
 - On first launch Caroushell will prompt you for an OpenAI-compatible endpoint
-  URL, API key, and model name, then store them in `~/.caroushell/config.json`.
+  URL, API key, and model name, then store them in `~/.caroushell/config.toml`.
 - You can also create the file manually:
 
-```json
-{
-  "apiUrl": "https://openrouter.ai/api/v1",
-  "apiKey": "your-api-key",
-  "model": "gpt-4o-mini"
-}
+```toml
+apiUrl = "https://openrouter.ai/api/v1"
+apiKey = "your-api-key"
+model = "gpt-4o-mini"
+```
+
+or
+
+```toml
+GEMINI_API_KEY = "AIzaSyD...N-wK"
 ```
 
 Any endpoint that implements the OpenAI Chat Completions API (OpenRouter,
@@ -60,7 +64,7 @@ Caroushell opens an interactive prompt:
 
 Logs are written to `~/.caroushell/logs/MM-DD.txt`. Inspect these files if you
 need to debug AI suggestions or the terminal renderer. Configuration lives at
-`~/.caroushell/config.json` (override via `CAROUSHELL_CONFIG_PATH`).
+`~/.caroushell/config.toml` (override via `CAROUSHELL_CONFIG_PATH`).
 
 ## Development
 

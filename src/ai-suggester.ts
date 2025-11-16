@@ -176,15 +176,6 @@ export class AISuggester implements Suggester {
     this.apiUrl =
       this.apiUrl || config.apiUrl || process.env.CAROUSHELL_API_URL;
     this.model = this.model || config.model || process.env.CAROUSHELL_MODEL;
-
-    // If the user provided only a Gemini key, default the URL/model accordingly.
-    if (!this.apiUrl && config.GEMINI_API_KEY) {
-      this.apiUrl =
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
-    }
-    if (!this.model && config.GEMINI_API_KEY) {
-      this.model = "gemini-2.5-flash-lite";
-    }
   }
 
   descriptionForAi(): string {

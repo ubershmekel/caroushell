@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import * as path from "path";
 import * as os from "os";
+import toml from "toml";
 
 export interface Config {
   apiUrl?: string;
@@ -10,7 +11,7 @@ export interface Config {
 }
 
 const GEMINI_DEFAULT_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/openai";
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite";
 
 export function configFolder(subpath: string): string {
@@ -20,13 +21,20 @@ export function configFolder(subpath: string): string {
 }
 
 export function getConfigPath(): string {
-  return process.env.CAROUSHELL_CONFIG_PATH || configFolder("config.json");
+  return process.env.CAROUSHELL_CONFIG_PATH || configFolder("config.toml");
 }
 
 async function readConfigFile(): Promise<Config> {
   const configPath = getConfigPath();
   const raw = await fs.readFile(configPath, "utf8");
-  return JSON.parse(raw);
+  if (!raw.trim()) {
+    return {};
+  }
+  try {
+    return toml.parse(raw);
+  } catch (err: any) {
+    throw new Error(`Error parsing config file at ${configPath}: ${err}`);
+  }
 }
 
 export async function doesConfigExist(): Promise<boolean> {
@@ -34,13 +42,13 @@ export async function doesConfigExist(): Promise<boolean> {
   try {
     await fs.access(configPath);
     const raw = await readConfigFile();
-    if (!raw) return false;
+    if (!raw || Object.keys(raw).length === 0) return false;
     return true;
   } catch (err: any) {
     if (err?.code === "ENOENT") {
       return false;
     }
-    // detect empty json file syntax error
+    // Treat invalid TOML as missing so we can reprompt the user.
     if (err instanceof SyntaxError) {
       return false;
     }
