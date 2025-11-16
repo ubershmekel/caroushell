@@ -72,14 +72,16 @@ export async function runHelloNewUserFlow(
       apiKey = answer;
     } else {
       console.log(
-        "Please enter an API key (the value stays local on this machine)."
+        "Please enter an API key. The value is stored in the local config file."
       );
     }
   }
 
   const models = await listModels(apiUrl, apiKey);
   if (models.length > 0) {
-    console.log("Here are a few example model ids.");
+    console.log(
+      "Here are a few example model ids from your api service. Choose a fast and cheap model because AI suggestions happen as you type."
+    );
     for (const model of models.slice(0, 5)) {
       console.log(`  - ${model}`);
     }
@@ -87,17 +89,12 @@ export async function runHelloNewUserFlow(
 
   let model = "";
   while (!model) {
-    const answer = (
-      await prompt(
-        "Model (e.g. gpt-4o-mini, google/gemini-2.5-flash-lite): ",
-        rl
-      )
-    ).trim();
+    const answer = (await prompt("Model id: ", rl)).trim();
     if (answer) {
       model = answer;
     } else {
       console.log(
-        "Please enter a model name (example: mistralai/mistral-small-24b-instruct-2501)."
+        "Please enter a model id (example: google/gemini-2.5-flash-lite, mistralai/mistral-small-24b-instruct-2501)."
       );
     }
   }

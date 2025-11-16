@@ -6,8 +6,10 @@ async function main() {
   if (!config.apiKey) {
     console.warn("Warning: no API key configured. The answer may be empty.");
   }
+  console.log("Using apiUrl:", config.apiUrl);
 
   const models = await listModels(config.apiUrl || "", config.apiKey || "");
+  models.sort();
   console.log("Available models:", models);
 
   const question = "What is the capital of France?";

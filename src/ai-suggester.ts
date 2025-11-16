@@ -72,6 +72,8 @@ export async function generateContent(
     });
     const res = await fetch(request.url, request.init);
     if (!res.ok) {
+      const text = await res.text();
+      logLine(`ai fetch error: ${res.statusText} (${text})`);
       return "ai fetch error: " + res.statusText;
     }
     const out = await extractText(await res.json());
@@ -80,6 +82,7 @@ export async function generateContent(
     logLine(`AI duration: ${duration} ms`);
     return text;
   } catch (err: any) {
+    logLine("ai caught error: " + err);
     return "ai error: " + err.message;
   }
 }
@@ -132,8 +135,10 @@ function buildRequest(args: BuildRequestArgs): BuiltRequest {
       headers: headers(args.apiKey),
       body: JSON.stringify({
         model: args.model,
-        temperature: args.temperature,
-        max_tokens: args.maxOutputTokens,
+        // OpenAI does not support temperature on some models
+        // temperature: args.temperature,
+        // max_tokens: args.maxOutputTokens,
+        // max_completion_tokens: args.maxOutputTokens,
         messages: [
           {
             role: "system",
