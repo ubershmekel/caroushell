@@ -22,6 +22,7 @@ export class App {
   private history: HistorySuggester;
   private ai: AISuggester;
   private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
+  private queueUpdateSuggestions: () => void;
 
   constructor() {
     this.terminal = new Terminal();
@@ -75,7 +76,13 @@ export class App {
         const cmd = this.carousel.getCurrentRow().trim();
         this.carousel.setInputBuffer("", 0);
         await this.runCommand(cmd);
+        // Carousel should point to the prompt
         this.carousel.resetIndex();
+        // After arbitrary output, reset render block tracking
+        this.terminal.resetBlockTracking();
+        // Render the prompt, without this we'd wait for the suggestions to call render
+        // and it would appear slow
+        this.render();
         this.queueUpdateSuggestions();
       },
       char: (evt) => {
@@ -143,8 +150,6 @@ export class App {
     }
   }
 
-  queueUpdateSuggestions() {}
-
   private render() {
     this.carousel.render();
     // Cursor placement handled inside carousel render.
@@ -156,7 +161,6 @@ export class App {
       // Log an empty line
       this.terminal.renderBlock([">"]);
       this.terminal.write("\n");
-      this.terminal.resetBlockTracking();
       return;
     }
 
@@ -176,9 +180,6 @@ export class App {
     } finally {
       this.keyboard.resume();
     }
-
-    // After arbitrary output, reset render block tracking
-    this.terminal.resetBlockTracking();
   }
 
   private exit() {
