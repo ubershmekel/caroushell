@@ -5,21 +5,24 @@ const isWin = process.platform === "win32";
 const shellBinary = isWin ? "cmd.exe" : "/bin/bash";
 const shellArgs = isWin ? ["/c"] : ["-lc"];
 
-const builtInCommands: Record<string, (args: string[]) => Promise<void>> = {
+const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
   cd: async (args: string[]) => {
     if (args.length === 1) {
       process.stdout.write(process.cwd() + "\n");
-      return;
+      return true;
     }
     const dest = expandVars(args[1]);
     try {
       process.chdir(dest);
     } catch (err: any) {
       process.stderr.write(`cd: ${err.message}\n`);
+      return false;
     }
+    return true;
   },
   exit: async () => {
     exit(0);
+    return false;
   },
 };
 
@@ -42,25 +45,22 @@ function expandVars(input: string): string {
   return out;
 }
 
-export async function runUserCommand(command: string) {
+export async function runUserCommand(command: string): Promise<boolean> {
   const trimmed = command.trim();
-  if (!trimmed) return;
+  if (!trimmed) return false;
 
   const args = command.split(/\s+/);
   if (typeof args[0] === "string" && builtInCommands[args[0]]) {
-    await builtInCommands[args[0]](args as string[]);
-    return;
+    return await builtInCommands[args[0]](args as string[]);
   }
 
   const proc = spawn(shellBinary, [...shellArgs, command], {
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: true,
+    stdio: "inherit",
   });
 
   await new Promise<void>((resolve, reject) => {
-    proc.stdout.on("data", (data) => process.stdout.write(data));
-    proc.stderr.on("data", (data) => process.stderr.write(data));
     proc.on("error", reject);
     proc.on("close", () => resolve());
   });
+  return proc.exitCode === 0;
 }

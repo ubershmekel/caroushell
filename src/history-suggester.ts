@@ -29,15 +29,16 @@ export class HistorySuggester implements Suggester {
 
   async add(command: string) {
     if (!command.trim()) return;
-    // Deduplicate recent duplicate
-    if (this.items[this.items.length - 1] !== command) {
-      this.items.push(command);
-      if (this.items.length > this.maxItems) this.items.shift();
-      await fs
-        .mkdir(path.dirname(this.filePath), { recursive: true })
-        .catch(() => {});
-      await fs.writeFile(this.filePath, this.items.join("\n"), "utf8");
+    if (this.items[this.items.length - 1] === command) {
+      // Deduplicate recent duplicate
+      return;
     }
+    this.items.push(command);
+    if (this.items.length > this.maxItems) this.items.shift();
+    await fs
+      .mkdir(path.dirname(this.filePath), { recursive: true })
+      .catch(() => {});
+    await fs.writeFile(this.filePath, this.items.join("\n"), "utf8");
   }
 
   async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {

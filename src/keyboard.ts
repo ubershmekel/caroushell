@@ -44,27 +44,49 @@ for (const seq of Object.keys(KEYMAP)) {
 
 export class Keyboard extends EventEmitter {
   private active = false;
+  private capturing = false;
   private buffer = '';
+  private stdin = process.stdin as NodeJS.ReadStream;
+  private onData = (data: string) => this.handleData(data);
 
   start() {
     if (this.active) return;
     this.active = true;
-    const stdin = process.stdin as any;
-    stdin.setEncoding('utf8');
-    if (stdin.isTTY) stdin.setRawMode(true);
-    stdin.resume();
-    const onData = (data: string) => this.handleData(data);
-    stdin.on('data', onData);
-    this.once('stop', () => {
-      stdin.off('data', onData);
-      if (stdin.isTTY) stdin.setRawMode(false);
-    });
+    this.stdin.setEncoding('utf8');
+    this.enableCapture();
   }
 
   stop() {
     if (!this.active) return;
     this.active = false;
-    this.emit('stop');
+    this.disableCapture();
+  }
+
+  pause() {
+    if (!this.active) return;
+    this.disableCapture();
+  }
+
+  resume() {
+    if (!this.active) return;
+    this.enableCapture();
+  }
+
+  private enableCapture() {
+    if (this.capturing) return;
+    if (this.stdin.isTTY) this.stdin.setRawMode(true);
+    this.stdin.on('data', this.onData);
+    this.stdin.resume();
+    this.capturing = true;
+  }
+
+  private disableCapture() {
+    if (!this.capturing) return;
+    this.stdin.off('data', this.onData);
+    if (this.stdin.isTTY) this.stdin.setRawMode(false);
+    this.stdin.pause();
+    this.buffer = '';
+    this.capturing = false;
   }
 
   private handleData(data: string) {

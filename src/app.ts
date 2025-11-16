@@ -167,9 +167,15 @@ export class App {
     // Ensure command output starts on the next line
     this.terminal.write("\n");
 
-    await this.history.add(cmd);
-
-    await runUserCommand(cmd);
+    this.keyboard.pause();
+    try {
+      const success = await runUserCommand(cmd);
+      if (success) {
+        await this.history.add(cmd);
+      }
+    } finally {
+      this.keyboard.resume();
+    }
 
     // After arbitrary output, reset render block tracking
     this.terminal.resetBlockTracking();
