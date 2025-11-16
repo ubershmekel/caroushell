@@ -98,7 +98,7 @@ export class Carousel {
     const { brightWhite, reset, dim } = colors;
     let color = dim;
     if (this.index === rowIndex) {
-      color = brightWhite;
+      color = colors.purple;
       if (rowIndex !== 0) {
         prefix = "> ";
       }

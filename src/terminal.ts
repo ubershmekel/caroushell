@@ -6,7 +6,9 @@ export const colors = {
   reset: "\x1b[0m",
   white: "\x1b[37m",
   brightWhite: "\x1b[97m",
-  dim: "\x1b[2m",
+  dimmest: "\x1b[2m",
+  dim: "\x1b[37m",
+  purple: "\x1b[95m",
   yellow: "\x1b[33m",
 };
 

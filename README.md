@@ -11,19 +11,27 @@ history, and AI suggestions as you type.
 - Press `Enter` to run the highlighted command.
 - Logs activity under `~/.caroushell/logs` for easy troubleshooting.
 - Extensible config file (`~/.caroushell/config.json`) so you can point the CLI
-  at different API keys or settings.
+  at different AI providers.
 
 ## Requirements
 
 - Node.js 18 or newer.
-- A `~/.caroushell/config.json` file that contains the tokens Caroushell needs.
-  Currently the file expects a Gemini API key:
+- On first launch Caroushell will prompt you for an OpenAI-compatible endpoint
+  URL, API key, and model name, then store them in `~/.caroushell/config.json`.
+- You can also create the file manually:
 
 ```json
 {
-  "GEMINI_API_KEY": "your-api-key"
+  "apiUrl": "https://openrouter.ai/api/v1",
+  "apiKey": "your-api-key",
+  "model": "gpt-4o-mini"
 }
 ```
+
+Any endpoint that implements the OpenAI Chat Completions API (OpenRouter,
+OpenAI, etc.) will work as long as the URL, key, and model are valid. If you
+only provide a Gemini API key in the config, Caroushell will default to the
+Gemini Flash Lite 2.5 endpoint and model.
 
 ## Installation
 
