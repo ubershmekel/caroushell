@@ -49,9 +49,14 @@ function ensureCleanGitState() {
   }
 }
 
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+
 function runStep(command: string, args: string[]) {
   console.log(`\n$ ${command} ${args.join(" ")}`);
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const result = spawnSync(command, args, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
   if (result.error) {
     console.error(result.error);
     process.exit(1);
@@ -63,9 +68,9 @@ function runStep(command: string, args: string[]) {
 
 ensureCleanGitState();
 
-runStep("npm", ["run", "lint"]);
-runStep("npm", ["version", versionArgument]);
-runStep("npm", ["run", "build"]);
-runStep("npm", ["publish"]);
+runStep(npmCommand, ["run", "lint"]);
+runStep(npmCommand, ["version", versionArgument]);
+runStep(npmCommand, ["run", "build"]);
+runStep(npmCommand, ["publish"]);
 
 console.log("\nRelease complete!");
