@@ -78,8 +78,8 @@ export async function generateContent(
     }
     const out = await extractText(await res.json());
     const text = typeof out === "string" ? out : "";
-    const duration = Date.now() - start;
-    logLine(`AI duration: ${duration} ms`);
+    const duration = (Date.now() - start) / 1000;
+    logLine(`AI duration: ${duration} seconds`);
     return text;
   } catch (err: any) {
     logLine("ai caught error: " + err);
