@@ -3,6 +3,7 @@ import { Keyboard, KeyEvent } from "./keyboard";
 import { Carousel } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
 import { AISuggester } from "./ai-suggester";
+import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
 
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
@@ -21,14 +22,17 @@ export class App {
 
   private history: HistorySuggester;
   private ai: AISuggester;
+  private files: FileSuggester;
   private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
   private queueUpdateSuggestions: () => void;
+  private usingFileSuggestions = false;
 
   constructor() {
     this.terminal = new Terminal();
     this.keyboard = new Keyboard();
     this.history = new HistorySuggester();
     this.ai = new AISuggester();
+    this.files = new FileSuggester();
     this.carousel = new Carousel({
       top: this.history,
       bottom: this.ai,
@@ -129,6 +133,9 @@ export class App {
         this.render();
         this.queueUpdateSuggestions();
       },
+      tab: () => {
+        this.toggleTopSuggester();
+      },
       escape: () => {},
     };
   }
@@ -136,6 +143,7 @@ export class App {
   async init() {
     await this.history.init();
     await this.ai.init();
+    await this.files.init();
   }
 
   async run() {
@@ -195,5 +203,13 @@ export class App {
     this.terminal.renderBlock([]);
     this.keyboard.stop();
     process.exit(0);
+  }
+
+  private toggleTopSuggester() {
+    this.usingFileSuggestions = !this.usingFileSuggestions;
+    const next = this.usingFileSuggestions ? this.files : this.history;
+    this.carousel.setTopSuggester(next);
+    this.render();
+    this.queueUpdateSuggestions();
   }
 }

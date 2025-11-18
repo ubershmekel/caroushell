@@ -19,6 +19,7 @@ export class Carousel {
   private inputBuffer: string = "";
   private inputCursor = 0;
   private terminal: Terminal;
+  private readonly emptyRow = "---";
 
   constructor(opts: {
     top: Suggester;
@@ -32,9 +33,12 @@ export class Carousel {
     this.bottom = opts.bottom;
     this.topRowCount = opts.topRows;
     this.bottomRowCount = opts.bottomRows;
-    const empty = "---";
-    this.latestTop = Array(this.topRowCount).fill(empty);
-    this.latestBottom = Array(this.bottomRowCount).fill(empty);
+    this.latestTop = this.createEmptyRows(this.topRowCount);
+    this.latestBottom = this.createEmptyRows(this.bottomRowCount);
+  }
+
+  private createEmptyRows(count: number): string[] {
+    return Array(count).fill(this.emptyRow);
   }
 
   async updateSuggestions(input?: string) {
@@ -272,6 +276,12 @@ export class Carousel {
       cursorRow,
       cursorCol
     );
+  }
+
+  setTopSuggester(suggester: Suggester) {
+    if (this.top === suggester) return;
+    this.top = suggester;
+    this.latestTop = this.createEmptyRows(this.topRowCount);
   }
 
   getSuggesters(): Suggester[] {
