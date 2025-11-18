@@ -37,6 +37,9 @@ const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {
   '\u001b[1~': { name: 'home' },
   '\u001b[4~': { name: 'end' },
   '\u001b[3~': { name: 'delete' },
+  // Focus in/out (sent by some terminals on focus change - swallow these)
+  '\u001b[I': { name: 'focus-in' },
+  '\u001b[O': { name: 'focus-out' },
 };
 
 // For efficient prefix checks
@@ -105,6 +108,11 @@ export class Keyboard extends EventEmitter {
       const evt = this.matchSequence(this.buffer);
       if (evt === 'need-more') return; // wait for more bytes
       if (evt) {
+        // Swallow focus in/out sequences so they don't show up as visible chars
+        if (evt.name === 'focus-in' || evt.name === 'focus-out') {
+          this.buffer = this.buffer.slice(evt.sequence.length);
+          continue;
+        }
         this.emit('key', evt);
         this.buffer = this.buffer.slice(evt.sequence.length);
         continue;
