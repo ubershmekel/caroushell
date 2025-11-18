@@ -238,6 +238,10 @@ export class Carousel {
     return this.index === 0;
   }
 
+  getInputCursor(): number {
+    return this.inputCursor;
+  }
+
   private getPromptCursorColumn(): number {
     const prefix = this.getPrefixByIndex(0);
     return prefix.length + this.inputCursor;
