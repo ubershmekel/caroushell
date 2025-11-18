@@ -20,24 +20,28 @@ export class FileSuggester implements Suggester {
     }
   }
 
-  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
-    const promptBuffer = carousel.getCurrentRow();
+  private async getMatchingFiles(queryRaw: string): Promise<string[]> {
     await this.refreshFiles();
-    if (!promptBuffer) {
-      return this.files;
+    const query = queryRaw.trim().toLowerCase();
+    if (!query) {
+      return [...this.files];
     }
+    return this.files.filter(
+      (file) => file.toLowerCase().indexOf(query.toLowerCase()) === 0
+    );
+  }
 
-    const cursor = carousel.getInputCursor();
-    let left = cursor;
-    while (left > 0 && !/\s/.test(promptBuffer[left - 1])) {
-      left -= 1;
-    }
-    const query = promptBuffer.slice(left, cursor).toLowerCase();
-    const filtered = query
-      ? this.files.filter((file) => file.toLowerCase().includes(query))
-      : this.files;
+  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
+    const { prefix } = carousel.getWordInfoAtCursor();
+    const matches = await this.getMatchingFiles(prefix);
+    return matches;
+  }
 
-    return filtered.slice(0, maxDisplayed);
+  async findUniqueMatch(prefix: string): Promise<string | null> {
+    const normalized = prefix.trim();
+    if (!normalized) return null;
+    const matches = await this.getMatchingFiles(normalized);
+    return matches.length === 1 ? matches[0] : null;
   }
 
   descriptionForAi(): string {

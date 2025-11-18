@@ -133,7 +133,9 @@ export class App {
         this.render();
         this.queueUpdateSuggestions();
       },
-      tab: () => {
+      tab: async () => {
+        const completed = await this.tryAutocompleteFile();
+        if (completed) return;
         this.toggleTopSuggester();
       },
       escape: () => {},
@@ -203,6 +205,21 @@ export class App {
     this.terminal.renderBlock([]);
     this.keyboard.stop();
     process.exit(0);
+  }
+
+  private async tryAutocompleteFile(): Promise<boolean> {
+    const wordInfo = this.carousel.getWordInfoAtCursor();
+    if (!wordInfo.prefix) return false;
+    const match = await this.files.findUniqueMatch(wordInfo.prefix);
+    if (!match) return false;
+    const current = this.carousel.getRow(0);
+    const before = current.slice(0, wordInfo.start);
+    const after = current.slice(wordInfo.end);
+    const next = `${before}${match}${after}`;
+    this.carousel.setInputBuffer(next, wordInfo.start + match.length);
+    this.render();
+    this.queueUpdateSuggestions();
+    return true;
   }
 
   private toggleTopSuggester() {

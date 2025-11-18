@@ -246,6 +246,24 @@ export class Carousel {
     return this.inputCursor;
   }
 
+  getWordInfoAtCursor() {
+    let start = this.inputCursor;
+    while (start > 0 && !this.isWhitespace(this.inputBuffer[start - 1])) {
+      start -= 1;
+    }
+    let end = this.inputCursor;
+    const len = this.inputBuffer.length;
+    while (end < len && !this.isWhitespace(this.inputBuffer[end])) {
+      end += 1;
+    }
+    return {
+      start,
+      end,
+      prefix: this.inputBuffer.slice(start, this.inputCursor),
+      word: this.inputBuffer.slice(start, end),
+    };
+  }
+
   private getPromptCursorColumn(): number {
     const prefix = this.getPrefixByIndex(0);
     return prefix.length + this.inputCursor;
