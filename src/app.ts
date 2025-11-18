@@ -77,6 +77,9 @@ export class App {
         this.queueUpdateSuggestions();
       },
       enter: async () => {
+        if (this.tryAcceptHighlightedFileSuggestion()) {
+          return;
+        }
         const cmd = this.carousel.getCurrentRow().trim();
         this.carousel.setInputBuffer("", 0);
         await this.runCommand(cmd);
@@ -222,11 +225,43 @@ export class App {
     return true;
   }
 
-  private toggleTopSuggester() {
-    this.usingFileSuggestions = !this.usingFileSuggestions;
-    const next = this.usingFileSuggestions ? this.files : this.history;
-    this.carousel.setTopSuggester(next);
+  private tryAcceptHighlightedFileSuggestion(): boolean {
+    const currentSuggester = this.carousel.getCurrentRowSuggester();
+    if (currentSuggester !== this.files) return false;
+    const suggestion = this.carousel.getCurrentRow();
+    if (!suggestion) return false;
+    const wordInfo = this.carousel.getWordInfoAtCursor();
+    const current = this.carousel.getRow(0);
+    const before = current.slice(0, wordInfo.start);
+    const after = current.slice(wordInfo.end);
+    const nextInput = `${before}${suggestion}${after}`;
+    this.carousel.setInputBuffer(nextInput, wordInfo.start + suggestion.length);
+    this.carousel.resetIndex();
+    this.showHistorySuggestions();
     this.render();
     this.queueUpdateSuggestions();
+    return true;
+  }
+
+  private toggleTopSuggester() {
+    if (this.usingFileSuggestions) {
+      this.showHistorySuggestions();
+    } else {
+      this.showFileSuggestions();
+    }
+    this.render();
+    this.queueUpdateSuggestions();
+  }
+
+  private showHistorySuggestions() {
+    if (!this.usingFileSuggestions) return;
+    this.usingFileSuggestions = false;
+    this.carousel.setTopSuggester(this.history);
+  }
+
+  private showFileSuggestions() {
+    if (this.usingFileSuggestions) return;
+    this.usingFileSuggestions = true;
+    this.carousel.setTopSuggester(this.files);
   }
 }

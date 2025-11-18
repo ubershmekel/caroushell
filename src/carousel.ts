@@ -119,6 +119,12 @@ export class Carousel {
     return this.getRow(this.index);
   }
 
+  getCurrentRowSuggester(): Suggester | null {
+    if (this.index > 0) return this.top;
+    if (this.index < 0) return this.bottom;
+    return null;
+  }
+
   setInputBuffer(value: string, cursorPos: number = value.length) {
     this.inputBuffer = value;
     this.inputCursor = Math.max(
