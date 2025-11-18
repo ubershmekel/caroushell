@@ -25,6 +25,10 @@ const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {
   '\u001b[B': { name: 'down' },
   '\u001b[C': { name: 'right' },
   '\u001b[D': { name: 'left' },
+  '\u001b[1;5C': { name: 'ctrl-right', ctrl: true },
+  '\u001b[1;5D': { name: 'ctrl-left', ctrl: true },
+  '\u001b[5C': { name: 'ctrl-right', ctrl: true },
+  '\u001b[5D': { name: 'ctrl-left', ctrl: true },
 
   // Home/End/Delete variants
   '\u001b[H': { name: 'home' },

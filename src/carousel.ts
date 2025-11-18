@@ -158,10 +158,45 @@ export class Carousel {
     this.inputCursor -= 1;
   }
 
+  private isWhitespace(char: string) {
+    return /\s/.test(char);
+  }
+
+  moveCursorWordLeft() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor === 0) return;
+    let pos = this.inputCursor;
+    // Skip any whitespace directly to the left of the cursor
+    while (pos > 0 && this.isWhitespace(this.inputBuffer[pos - 1])) {
+      pos -= 1;
+    }
+    // Skip the word characters to the left
+    while (pos > 0 && !this.isWhitespace(this.inputBuffer[pos - 1])) {
+      pos -= 1;
+    }
+    this.inputCursor = pos;
+  }
+
   moveCursorRight() {
     this.adoptSelectionIntoInput();
     if (this.inputCursor >= this.inputBuffer.length) return;
     this.inputCursor += 1;
+  }
+
+  moveCursorWordRight() {
+    this.adoptSelectionIntoInput();
+    if (this.inputCursor >= this.inputBuffer.length) return;
+    let pos = this.inputCursor;
+    const len = this.inputBuffer.length;
+    // Skip any whitespace to the right of the cursor
+    while (pos < len && this.isWhitespace(this.inputBuffer[pos])) {
+      pos += 1;
+    }
+    // Skip through the next word
+    while (pos < len && !this.isWhitespace(this.inputBuffer[pos])) {
+      pos += 1;
+    }
+    this.inputCursor = pos;
   }
 
   moveCursorHome() {

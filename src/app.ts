@@ -108,6 +108,14 @@ export class App {
         this.carousel.moveCursorRight();
         this.render();
       },
+      "ctrl-left": () => {
+        this.carousel.moveCursorWordLeft();
+        this.render();
+      },
+      "ctrl-right": () => {
+        this.carousel.moveCursorWordRight();
+        this.render();
+      },
       home: () => {
         this.carousel.moveCursorHome();
         this.render();
