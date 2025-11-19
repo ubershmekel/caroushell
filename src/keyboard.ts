@@ -30,6 +30,13 @@ const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {
   '\u001b[1;5D': { name: 'ctrl-left', ctrl: true },
   '\u001b[5C': { name: 'ctrl-right', ctrl: true },
   '\u001b[5D': { name: 'ctrl-left', ctrl: true },
+  // Option/Alt-based word jumps (macOS/iTerm send meta-modified arrows or ESC+b/f)
+  '\u001b[1;3C': { name: 'ctrl-right', meta: true },
+  '\u001b[1;3D': { name: 'ctrl-left', meta: true },
+  '\u001b[1;9C': { name: 'ctrl-right', meta: true },
+  '\u001b[1;9D': { name: 'ctrl-left', meta: true },
+  '\u001bf': { name: 'ctrl-right', meta: true },
+  '\u001bb': { name: 'ctrl-left', meta: true },
 
   // Home/End/Delete variants
   '\u001b[H': { name: 'home' },

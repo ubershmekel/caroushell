@@ -13,7 +13,7 @@ function shouldPrintVersion(): boolean {
 function printVersion() {
   const pkgJsonPath = resolve(__dirname, "..", "package.json");
   const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
-  console.log(pkgJson.version);
+  console.log("caroushell version:", pkgJson.version);
 }
 
 async function main() {
