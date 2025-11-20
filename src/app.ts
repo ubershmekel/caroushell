@@ -226,6 +226,7 @@ export class App {
   }
 
   private tryAcceptHighlightedFileSuggestion(): boolean {
+    // After ENTER on a file suggestion, we want to place the match at the cursor
     const currentSuggester = this.carousel.getCurrentRowSuggester();
     if (currentSuggester !== this.files) return false;
     const suggestion = this.carousel.getCurrentRow();
