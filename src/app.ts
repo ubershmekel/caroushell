@@ -153,7 +153,7 @@ export class App {
 
   async run() {
     await this.init();
-    this.keyboard.start();
+    this.keyboard.enableCapture();
 
     this.keyboard.on("key", (evt: KeyEvent) => {
       void this.handleKey(evt);
@@ -192,21 +192,23 @@ export class App {
     // Ensure command output starts on the next line
     this.terminal.write("\n");
 
-    this.keyboard.pause();
+    this.keyboard.disableCapture();
+    this.terminal.disableWrites();
     try {
       const storeInHistory = await runUserCommand(cmd);
       if (storeInHistory) {
         await this.history.add(cmd);
       }
     } finally {
-      this.keyboard.resume();
+      this.terminal.enableWrites();
+      this.keyboard.enableCapture();
     }
   }
 
   private exit() {
     // Clear terminal contents before shutting down to leave a clean screen.
     this.terminal.renderBlock([]);
-    this.keyboard.stop();
+    this.keyboard.disableCapture();
     process.exit(0);
   }
 

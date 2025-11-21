@@ -58,44 +58,21 @@ for (const seq of Object.keys(KEYMAP)) {
 }
 
 export class Keyboard extends EventEmitter {
-  private active = false;
   private capturing = false;
   private buffer = '';
   private stdin = process.stdin as NodeJS.ReadStream;
   private onData = (data: string) => this.handleData(data);
 
-  start() {
-    if (this.active) return;
-    this.active = true;
-    this.stdin.setEncoding('utf8');
-    this.enableCapture();
-  }
-
-  stop() {
-    if (!this.active) return;
-    this.active = false;
-    this.disableCapture();
-  }
-
-  pause() {
-    if (!this.active) return;
-    this.disableCapture();
-  }
-
-  resume() {
-    if (!this.active) return;
-    this.enableCapture();
-  }
-
-  private enableCapture() {
+  enableCapture() {
     if (this.capturing) return;
+    this.stdin.setEncoding('utf8');
     if (this.stdin.isTTY) this.stdin.setRawMode(true);
     this.stdin.on('data', this.onData);
     this.stdin.resume();
     this.capturing = true;
   }
 
-  private disableCapture() {
+  disableCapture() {
     if (!this.capturing) return;
     this.stdin.off('data', this.onData);
     if (this.stdin.isTTY) this.stdin.setRawMode(false);

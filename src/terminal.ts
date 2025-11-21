@@ -17,6 +17,19 @@ export class Terminal {
   private activeRows = 0;
   private cursorRow = 0;
   private cursorCol = 0;
+  private writesDisabled = false;
+
+  disableWrites() {
+    this.writesDisabled = true;
+  }
+
+  enableWrites() {
+    this.writesDisabled = false;
+  }
+
+  private canWrite(): boolean {
+    return !this.writesDisabled;
+  }
 
   private moveCursorToTopOfBlock() {
     if (this.activeRows === 0) return;
@@ -49,6 +62,7 @@ export class Terminal {
   }
 
   write(text: string) {
+    if (!this.canWrite()) return;
     this.out.write(text);
   }
 
@@ -62,6 +76,7 @@ export class Terminal {
 
   // Render a block of lines by clearing previous block (if any) and writing fresh
   renderBlock(lines: string[], cursorRow?: number, cursorCol?: number) {
+    if (!this.canWrite()) return;
     this.withCork(() => {
       this.moveCursorToTopOfBlock();
       if (this.activeRows > 0) {
@@ -70,8 +85,8 @@ export class Terminal {
       }
 
       for (let i = 0; i < lines.length; i++) {
-        this.out.write(lines[i]);
-        if (i < lines.length - 1) this.out.write("\n");
+        this.write(lines[i]);
+        if (i < lines.length - 1) this.write("\n");
       }
       this.activeRows = lines.length;
       this.cursorRow = Math.max(0, this.activeRows - 1);
@@ -91,6 +106,7 @@ export class Terminal {
   }
 
   moveCursorTo(lineIndex: number, column: number) {
+    if (!this.canWrite()) return;
     if (this.activeRows === 0) return;
     const safeLine = Math.min(
       Math.max(lineIndex, 0),
