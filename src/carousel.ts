@@ -15,6 +15,10 @@ export class Carousel {
   private bottomRowCount: number;
   private latestTop: string[] = [];
   private latestBottom: string[] = [];
+  // Track requests so stale async responses cannot overwrite newer suggestions
+  private updateRequestId = 0;
+  private topDoneId = -1;
+  private bottomDoneId = -1;
   private index = 0;
   private inputBuffer: string = "";
   private inputCursor = 0;
@@ -45,14 +49,19 @@ export class Carousel {
     if (typeof input === "string") {
       this.setInputBuffer(input);
     }
-    const topPromise = this.top.suggest(this, this.topRowCount);
-    const bottomPromise = this.bottom.suggest(this, this.bottomRowCount);
-    void topPromise.then((r) => {
-      this.latestTop = r;
+    const updateRequestId = ++this.updateRequestId;
+    void this.top.suggest(this, this.topRowCount).then((results) => {
+      // ignore stale results
+      if (updateRequestId < this.topDoneId) return;
+      this.topDoneId = updateRequestId;
+      this.latestTop = results;
       this.render();
     });
-    void bottomPromise.then((r) => {
-      this.latestBottom = r;
+    void this.bottom.suggest(this, this.bottomRowCount).then((results) => {
+      // ignore stale results
+      if (updateRequestId < this.bottomDoneId) return;
+      this.bottomDoneId = updateRequestId;
+      this.latestBottom = results;
       this.render();
     });
   }

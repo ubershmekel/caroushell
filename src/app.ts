@@ -6,15 +6,6 @@ import { AISuggester } from "./ai-suggester";
 import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
 
-function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
-  // Debounce function to limit the rate at which a function can fire
-  let t: NodeJS.Timeout | null = null;
-  return (...args: Parameters<T>) => {
-    if (t) clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
 export class App {
   terminal: Terminal;
   keyboard: Keyboard;
@@ -41,9 +32,9 @@ export class App {
       terminal: this.terminal,
     });
 
-    this.queueUpdateSuggestions = debounce(async () => {
-      await this.carousel.updateSuggestions();
-    }, 300);
+    this.queueUpdateSuggestions = () => {
+      void this.carousel.updateSuggestions();
+    };
 
     this.handlers = {
       "ctrl-c": () => {
