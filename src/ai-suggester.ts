@@ -29,6 +29,33 @@ type BuiltRequest = {
   init: RequestInit;
 };
 
+function debounceAsync<T extends (...args: any[]) => Promise<any>>(
+  fn: T,
+  ms: number
+) {
+  let t: NodeJS.Timeout | null = null;
+  let pending: {
+    resolve: (value: Awaited<ReturnType<T>>) => void;
+    reject: (reason?: unknown) => void;
+  }[] = [];
+  return (...args: Parameters<T>): Promise<Awaited<ReturnType<T>>> => {
+    if (t) clearTimeout(t);
+    return new Promise<Awaited<ReturnType<T>>>((resolve, reject) => {
+      pending.push({ resolve, reject });
+      t = setTimeout(async () => {
+        const callbacks = pending.splice(0);
+        t = null;
+        try {
+          const result = await fn(...args);
+          for (const cb of callbacks) cb.resolve(result);
+        } catch (err) {
+          for (const cb of callbacks) cb.reject(err);
+        }
+      }, ms);
+    });
+  };
+}
+
 export async function generateContent(
   prompt: string,
   options?: GenerateContentOptions
@@ -164,6 +191,8 @@ export class AISuggester implements Suggester {
   private apiKey: string | undefined;
   private apiUrl: string | undefined;
   private model: string | undefined;
+  private latestSuggestions: string[] = [];
+  private debouncedSuggest = debounceAsync(this.runSuggestNow.bind(this), 350);
 
   constructor(opts?: { apiKey?: string; apiUrl?: string; model?: string }) {
     this.apiKey = opts?.apiKey;
@@ -187,12 +216,35 @@ export class AISuggester implements Suggester {
     return "";
   }
 
-  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
+  latest(): string[] {
+    return this.latestSuggestions;
+  }
+
+  async refreshSuggestions(
+    carousel: Carousel,
+    maxDisplayed: number
+  ): Promise<void> {
     if (!this.apiKey || !this.apiUrl || !this.model) {
       logLine("AI generation skipped: missing API configuration");
-      return [];
+      this.latestSuggestions = [];
+      carousel.render();
+      return;
     }
 
+    try {
+      const suggestions = await this.debouncedSuggest(carousel, maxDisplayed);
+      this.latestSuggestions = suggestions.slice(0, maxDisplayed);
+    } catch (err: any) {
+      logLine("ai suggest error: " + err?.message);
+      this.latestSuggestions = [];
+    }
+    carousel.render();
+  }
+
+  private async runSuggestNow(
+    carousel: Carousel,
+    maxDisplayed: number
+  ): Promise<string[]> {
     const descriptions = [];
     for (const suggester of carousel.getSuggesters()) {
       const desc = suggester.descriptionForAi();

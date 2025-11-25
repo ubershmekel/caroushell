@@ -8,6 +8,7 @@ const maxFileAiLines = 10;
 export class FileSuggester implements Suggester {
   prefix = "📂";
   private files: string[] = [];
+  private latestSuggestions: string[] = [];
 
   async init() {
     await this.refreshFiles();
@@ -78,10 +79,17 @@ export class FileSuggester implements Suggester {
     return path.resolve(process.cwd(), converted);
   }
 
-  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
+  latest(): string[] {
+    return this.latestSuggestions;
+  }
+
+  async refreshSuggestions(
+    carousel: Carousel,
+    maxDisplayed: number
+  ): Promise<void> {
     const { prefix } = carousel.getWordInfoAtCursor();
-    const matches = await this.getMatchingFiles(prefix);
-    return matches;
+    this.latestSuggestions = await this.getMatchingFiles(prefix);
+    carousel.render();
   }
 
   async findUniqueMatch(prefix: string): Promise<string | null> {

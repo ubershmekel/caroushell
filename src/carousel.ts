@@ -4,7 +4,8 @@ import { Terminal, colors } from "./terminal";
 export interface Suggester {
   prefix: string;
   init(): Promise<void>;
-  suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]>;
+  refreshSuggestions(carousel: Carousel, maxDisplayed: number): Promise<void>;
+  latest(): string[];
   descriptionForAi(): string;
 }
 
@@ -13,17 +14,10 @@ export class Carousel {
   private bottom: Suggester;
   private topRowCount: number;
   private bottomRowCount: number;
-  private latestTop: string[] = [];
-  private latestBottom: string[] = [];
-  // Track requests so stale async responses cannot overwrite newer suggestions
-  private updateRequestId = 0;
-  private topDoneId = -1;
-  private bottomDoneId = -1;
   private index = 0;
   private inputBuffer: string = "";
   private inputCursor = 0;
   private terminal: Terminal;
-  private readonly emptyRow = "---";
 
   constructor(opts: {
     top: Suggester;
@@ -37,60 +31,45 @@ export class Carousel {
     this.bottom = opts.bottom;
     this.topRowCount = opts.topRows;
     this.bottomRowCount = opts.bottomRows;
-    this.latestTop = this.createEmptyRows(this.topRowCount);
-    this.latestBottom = this.createEmptyRows(this.bottomRowCount);
-  }
-
-  private createEmptyRows(count: number): string[] {
-    return Array(count).fill(this.emptyRow);
   }
 
   async updateSuggestions(input?: string) {
     if (typeof input === "string") {
       this.setInputBuffer(input);
     }
-    const updateRequestId = ++this.updateRequestId;
-    void this.top.suggest(this, this.topRowCount).then((results) => {
-      // ignore stale results
-      if (updateRequestId < this.topDoneId) return;
-      this.topDoneId = updateRequestId;
-      this.latestTop = results;
-      this.render();
-    });
-    void this.bottom.suggest(this, this.bottomRowCount).then((results) => {
-      // ignore stale results
-      if (updateRequestId < this.bottomDoneId) return;
-      this.bottomDoneId = updateRequestId;
-      this.latestBottom = results;
-      this.render();
-    });
+    void this.top.refreshSuggestions(this, this.topRowCount);
+    void this.bottom.refreshSuggestions(this, this.bottomRowCount);
   }
 
   up() {
     this.index += 1;
-    if (this.index >= this.latestTop.length) {
-      this.index = this.latestTop.length;
+    const topLength = this.top.latest().length;
+    if (this.index >= topLength) {
+      this.index = topLength;
     }
   }
 
   down() {
     this.index -= 1;
-    if (-this.index >= this.latestBottom.length) {
-      this.index = -this.latestBottom.length;
+    const bottomLength = this.bottom.latest().length;
+    if (-this.index >= bottomLength) {
+      this.index = -bottomLength;
     }
   }
 
   getRow(rowIndex: number): string {
+    const latestTop = this.top.latest();
+    const latestBottom = this.bottom.latest();
     if (rowIndex < 0) {
       const bottomIndex = -rowIndex - 1;
-      return this.latestBottom[bottomIndex] || "";
+      return latestBottom[bottomIndex] || "";
     }
     if (rowIndex === 0) {
       return this.inputBuffer;
     }
     if (rowIndex > 0) {
       const topIndex = rowIndex - 1;
-      return this.latestTop[topIndex] || "";
+      return latestTop[topIndex] || "";
     }
     return "";
   }
@@ -314,7 +293,10 @@ export class Carousel {
   setTopSuggester(suggester: Suggester) {
     if (this.top === suggester) return;
     this.top = suggester;
-    this.latestTop = this.createEmptyRows(this.topRowCount);
+    if (this.index > 0) {
+      const topLength = this.top.latest().length;
+      this.index = Math.min(this.index, topLength);
+    }
   }
 
   getSuggesters(): Suggester[] {

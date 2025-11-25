@@ -45,24 +45,34 @@ export class HistorySuggester implements Suggester {
     );
   }
 
-  async suggest(carousel: Carousel, maxDisplayed: number): Promise<string[]> {
+  latest(): string[] {
+    return this.items;
+  }
+
+  async refreshSuggestions(
+    carousel: Carousel,
+    maxDisplayed: number
+  ): Promise<void> {
     const input = carousel.getCurrentRow();
+    let results: string[];
     if (!input) {
       // this.items 0 index is newest
-      return this.items;
-    }
-    const q = input.toLowerCase();
-    const matched = [] as string[];
-    // iterate from newest to oldest so we skip older duplicates
-    const seen = new Set<string>();
-    for (let i = 0; i < this.items.length; i++) {
-      const it = this.items[i];
-      if (it.toLowerCase().includes(q) && !seen.has(it)) {
-        seen.add(it);
-        matched.push(it);
+      results = this.items;
+    } else {
+      const q = input.toLowerCase();
+      const matched = [] as string[];
+      // iterate from newest to oldest so we skip older duplicates
+      const seen = new Set<string>();
+      for (let i = 0; i < this.items.length; i++) {
+        const it = this.items[i];
+        if (it.toLowerCase().includes(q) && !seen.has(it)) {
+          seen.add(it);
+          matched.push(it);
+        }
       }
+      results = matched;
     }
-    return matched;
+    carousel.render();
   }
 
   descriptionForAi(): string {
