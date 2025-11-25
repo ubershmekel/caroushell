@@ -3,6 +3,8 @@ import * as path from "path";
 import readline from "readline";
 import { listModels } from "./ai-suggester";
 
+const preferredModels = ["gemini-2.5-flash-lite", "gpt-4o-mini"];
+
 export type HelloConfig = {
   apiUrl: string;
   apiKey: string;
@@ -20,6 +22,23 @@ async function prompt(
   return await new Promise<string>((resolve) => {
     rl.question(question, (answer) => resolve(answer));
   });
+}
+
+function findShortestMatches(
+  models: string[],
+  preferredList: string[]
+): string[] {
+  const matches: string[] = [];
+  for (const pref of preferredList) {
+    const hits = models.filter((modelId) => modelId.includes(pref));
+    if (hits.length) {
+      const shortest = hits.reduce((best, candidate) =>
+        candidate.length < best.length ? candidate : best
+      );
+      matches.push(shortest);
+    }
+  }
+  return [...new Set(matches)];
 }
 
 export async function runHelloNewUserFlow(
@@ -79,11 +98,20 @@ export async function runHelloNewUserFlow(
 
   const models = await listModels(apiUrl, apiKey);
   if (models.length > 0) {
+    const preferred = findShortestMatches(models, preferredModels);
+
     console.log(
       "Here are a few example model ids from your api service. Choose a fast and cheap model because AI suggestions happen as you type."
     );
     for (const model of models.slice(0, 5)) {
       console.log(`  - ${model}`);
+    }
+
+    if (preferred.length) {
+      console.log("Recommended models from your provider:");
+      for (const model of preferred) {
+        console.log(`  - ${model}`);
+      }
     }
   }
 
