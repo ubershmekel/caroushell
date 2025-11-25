@@ -31,27 +31,24 @@ type BuiltRequest = {
 
 function debounceAsync<T extends (...args: any[]) => Promise<any>>(
   fn: T,
-  ms: number
+  delayMs: number
 ) {
-  let t: NodeJS.Timeout | null = null;
-  let pending: {
-    resolve: (value: Awaited<ReturnType<T>>) => void;
-    reject: (reason?: unknown) => void;
-  }[] = [];
+  let tim: NodeJS.Timeout | null = null;
+  let rejectLast: ((reason?: unknown) => void) | null = null;
   return (...args: Parameters<T>): Promise<Awaited<ReturnType<T>>> => {
-    if (t) clearTimeout(t);
+    if (tim) clearTimeout(tim);
     return new Promise<Awaited<ReturnType<T>>>((resolve, reject) => {
-      pending.push({ resolve, reject });
-      t = setTimeout(async () => {
-        const callbacks = pending.splice(0);
-        t = null;
-        try {
-          const result = await fn(...args);
-          for (const cb of callbacks) cb.resolve(result);
-        } catch (err) {
-          for (const cb of callbacks) cb.reject(err);
-        }
-      }, ms);
+      if (rejectLast) {
+        rejectLast(new Error("debounced"));
+      }
+      rejectLast = reject;
+      tim = setTimeout(() => {
+        tim = null;
+        rejectLast = null;
+        fn(...args)
+          .then(resolve)
+          .catch(reject);
+      }, delayMs);
     });
   };
 }
@@ -235,7 +232,9 @@ export class AISuggester implements Suggester {
       const suggestions = await this.debouncedSuggest(carousel, maxDisplayed);
       this.latestSuggestions = suggestions.slice(0, maxDisplayed);
     } catch (err: any) {
-      logLine("ai suggest error: " + err?.message);
+      if (err?.message !== "debounced") {
+        logLine("ai suggest error: " + err?.message);
+      }
       this.latestSuggestions = [];
     }
     carousel.render();
