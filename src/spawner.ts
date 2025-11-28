@@ -58,7 +58,7 @@ export async function runUserCommand(command: string): Promise<boolean> {
   // \"Asdf\" instead of "Asdf"
   const proc = spawn(shellBinary, [...shellArgs, command], {
     stdio: "inherit",
-    shell: true,
+    // shell: true,
   });
 
   await new Promise<void>((resolve, reject) => {
