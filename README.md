@@ -1,5 +1,8 @@
 # Caroushell
 
+[![npm version](https://img.shields.io/npm/v/caroushell.svg)](https://www.npmjs.com/package/caroushell)
+[![npm downloads](https://img.shields.io/npm/dm/caroushell.svg)](https://www.npmjs.com/package/caroushell)
+
 Caroushell is an interactive terminal carousel that suggests commands from your
 history, and AI suggestions as you type.
 
