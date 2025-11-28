@@ -1,9 +1,10 @@
 import { spawn } from "child_process";
 import { exit } from "process";
+import { logLine } from "./logs";
 
 const isWin = process.platform === "win32";
 const shellBinary = isWin ? "cmd.exe" : "/bin/bash";
-const shellArgs = isWin ? ["/c"] : ["-lc"];
+const shellArgs = isWin ? ["/d", "/s", "/c"] : ["-lc"];
 
 const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
   cd: async (args: string[]) => {
@@ -46,6 +47,7 @@ function expandVars(input: string): string {
 }
 
 export async function runUserCommand(command: string): Promise<boolean> {
+  logLine(`Running command: ${command}`);
   const trimmed = command.trim();
   if (!trimmed) return false;
 
@@ -54,11 +56,11 @@ export async function runUserCommand(command: string): Promise<boolean> {
     return await builtInCommands[args[0]](args as string[]);
   }
 
-  // "shell: true" to prevent the bug of `echo "asdf"` outputting
-  // \"Asdf\" instead of "Asdf"
+  // "windowsVerbatimArguments: true" to prevent the bug of `echo "asdf"` outputting
+  // \"asdf\" instead of "asdf". I wonder why node defaults to quoting args on windows.
   const proc = spawn(shellBinary, [...shellArgs, command], {
     stdio: "inherit",
-    // shell: true,
+    windowsVerbatimArguments: true,
   });
 
   await new Promise<void>((resolve, reject) => {
