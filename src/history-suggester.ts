@@ -7,6 +7,7 @@ export class HistorySuggester implements Suggester {
   prefix = "⌛";
   private filePath: string;
   private items: string[] = [];
+  private filteredItems: string[] = [];
   private maxItems = 1000;
 
   constructor(filePath?: string) {
@@ -22,8 +23,10 @@ export class HistorySuggester implements Suggester {
     try {
       const data = await fs.readFile(this.filePath, "utf8");
       this.items = this.parseHistory(data);
+      this.filteredItems = this.items;
     } catch {
       this.items = [];
+      this.filteredItems = [];
     }
   }
 
@@ -46,7 +49,7 @@ export class HistorySuggester implements Suggester {
   }
 
   latest(): string[] {
-    return this.items;
+    return this.filteredItems;
   }
 
   async refreshSuggestions(
@@ -54,24 +57,22 @@ export class HistorySuggester implements Suggester {
     maxDisplayed: number
   ): Promise<void> {
     const input = carousel.getCurrentRow();
-    let results: string[];
-    if (!input) {
-      // this.items 0 index is newest
-      results = this.items;
-    } else {
+    let suggestedItems = this.items;
+    if (input) {
+      // filter by input substring
       const q = input.toLowerCase();
-      const matched = [] as string[];
+      suggestedItems = [];
       // iterate from newest to oldest so we skip older duplicates
       const seen = new Set<string>();
       for (let i = 0; i < this.items.length; i++) {
         const it = this.items[i];
         if (it.toLowerCase().includes(q) && !seen.has(it)) {
           seen.add(it);
-          matched.push(it);
+          suggestedItems.push(it);
         }
       }
-      results = matched;
     }
+    this.filteredItems = suggestedItems;
     carousel.render();
   }
 
