@@ -54,8 +54,11 @@ export async function runUserCommand(command: string): Promise<boolean> {
     return await builtInCommands[args[0]](args as string[]);
   }
 
+  // "shell: true" to prevent the bug of `echo "asdf"` outputting
+  // \"Asdf\" instead of "Asdf"
   const proc = spawn(shellBinary, [...shellArgs, command], {
     stdio: "inherit",
+    shell: true,
   });
 
   await new Promise<void>((resolve, reject) => {

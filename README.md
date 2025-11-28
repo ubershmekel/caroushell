@@ -23,7 +23,7 @@ The UI layout looks like this:
 ```
 ⌛history2
 ⌛history1
-$> YOU TYPE YOUR SHELL commands HERE
+$> YOU TYPE YOUR SHELL COMMANDS HERE
 🤖ai suggestion1
 🤖ai suggestion2
 ```
@@ -90,8 +90,8 @@ Caroushell opens an interactive prompt:
 - Use arrow keys to move between suggestions in the carousel.
 - Press `Enter` to run the highlighted command.
 - Press `Ctrl+C` to exit. `Ctrl+D` exits when the current row is empty.
-- Press `Tab` to autocomplete a file suggestion or browse files and folders
-  with the arrow keys.
+- Press `Tab` to autocomplete a file suggestion or browse files and folders with
+  the arrow keys.
 
 Logs are written to `~/.caroushell/logs/MM-DD.txt`. Inspect these files if you
 need to debug AI suggestions or the terminal renderer. Configuration lives at
