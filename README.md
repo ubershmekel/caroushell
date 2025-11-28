@@ -8,7 +8,7 @@ history, and AI suggestions as you type.
 
 ## Features
 
-- The top panel of the carousel shows history
+- The top panel of the carousel shows history.
 - The bottom panel of the carousel shows AI-generated command suggestions.
 - Go up and down the carousel with arrow keys.
 - Press `Enter` to run the highlighted command.
@@ -18,7 +18,7 @@ history, and AI suggestions as you type.
 
 ## UI
 
-The UI has layout looks like this:
+The UI layout looks like this:
 
 ```
 ⌛history2
@@ -28,7 +28,7 @@ $> YOU TYPE YOUR SHELL commands HERE
 🤖ai suggestion2
 ```
 
-Here's an example using a comment to get ai auto-completion for ffmpeg:
+Here's an example using a comment to get AI autocompletion for ffmpeg:
 
 ```
 ⌛echo 123
@@ -38,7 +38,7 @@ $> ffmpeg -i myvideo.mp4 # slowmo 50%
 🤖ffmpeg -i myvideo.mp4 -vf "setpts=0.5*PTS" output_fast.mp4
 ```
 
-It would like this:
+It would look like this:
 
 ![Caroushell ai suggestion for ffmpeg slowmo](docs/assets/demo.gif)
 
@@ -90,7 +90,7 @@ Caroushell opens an interactive prompt:
 - Use arrow keys to move between suggestions in the carousel.
 - Press `Enter` to run the highlighted command.
 - Press `Ctrl+C` to exit. `Ctrl+D` exits when the current row is empty.
-- Press `Tab` to autocomplete a file suggestion or browse files and folders to
+- Press `Tab` to autocomplete a file suggestion or browse files and folders
   with the arrow keys.
 
 Logs are written to `~/.caroushell/logs/MM-DD.txt`. Inspect these files if you
