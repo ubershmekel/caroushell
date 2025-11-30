@@ -3,8 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/caroushell.svg)](https://www.npmjs.com/package/caroushell)
 [![npm downloads](https://img.shields.io/npm/dm/caroushell.svg)](https://www.npmjs.com/package/caroushell)
 
-Caroushell is an interactive terminal carousel that suggests commands from your
-history, and AI suggestions as you type.
+Caroushell is kind of like `bash` but you see history and AI suggestions as you
+type.
 
 ## Features
 
@@ -12,9 +12,6 @@ history, and AI suggestions as you type.
 - The bottom panel of the carousel shows AI-generated command suggestions.
 - Go up and down the carousel with arrow keys.
 - Press `Enter` to run the highlighted command.
-- Logs activity under `~/.caroushell/logs` for easy troubleshooting.
-- Extensible config file (`~/.caroushell/config.toml`) so you can point the CLI
-  at different AI providers.
 
 ## UI
 
@@ -42,12 +39,13 @@ It would look like this:
 
 ![Caroushell ai suggestion for ffmpeg slowmo](docs/assets/demo.gif)
 
-## Requirements
+## Setup
 
 - Node.js 18 or newer.
 - On first launch Caroushell will prompt you for an OpenAI-compatible endpoint
   URL, API key, and model name, then store them in `~/.caroushell/config.toml`.
 - You can also create the file manually:
+- Logs are at `~/.caroushell/logs` for easy troubleshooting.
 
 ```toml
 apiUrl = "https://openrouter.ai/api/v1"
