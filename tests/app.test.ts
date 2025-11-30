@@ -79,8 +79,8 @@ test("app prompt redraw keeps suggestion row intact", async () => {
   const app = new App({
     terminal,
     keyboard,
-    history,
-    ai,
+    topPanel: history,
+    bottomPanel: ai,
     files,
     suggesters: [history, ai, files],
   });
