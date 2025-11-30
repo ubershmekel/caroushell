@@ -6,6 +6,7 @@ import { configFolder } from "./config";
 export class HistorySuggester implements Suggester {
   prefix = "⌛";
   private filePath: string;
+  // `items` is the history as a list of commands, with the most recent at index 0
   private items: string[] = [];
   private filteredItems: string[] = [];
   private maxItems = 1000;
@@ -77,18 +78,19 @@ export class HistorySuggester implements Suggester {
   }
 
   descriptionForAi(): string {
+    // This goes into the prompt
     const lines = [];
     const maxHistoryLines = 20;
-    const start = Math.max(0, this.items.length - maxHistoryLines);
-    const end = this.items.length - 1;
-    const reverseSlice = this.items.slice(start, end).reverse();
-    if (reverseSlice.length > 0) {
-      lines.push(`The most recent command is: "${reverseSlice[0]}"`);
+    const start = 0;
+    const end = maxHistoryLines;
+    const newToOldSlice = this.items.slice(start, end);
+    if (newToOldSlice.length > 0) {
+      lines.push(`The most recent command is: "${newToOldSlice[0]}"`);
     }
-    if (reverseSlice.length > 1) {
+    if (newToOldSlice.length > 1) {
       lines.push("The most recent commands are (from recent to oldest):");
-      for (let i = 0; i < reverseSlice.length; i++) {
-        lines.push(`  ${i + 1}. ${reverseSlice[i]}`);
+      for (let i = 0; i < newToOldSlice.length; i++) {
+        lines.push(`  ${i + 1}. ${newToOldSlice[i]}`);
       }
     }
     return lines.join("\n");
