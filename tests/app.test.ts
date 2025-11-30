@@ -66,7 +66,7 @@ class NullFileSuggester extends StaticSuggester {
   }
 }
 
-test("app prompt redraw keeps suggestion row intact", async () => {
+void test("app prompt redraw keeps suggestion row intact", async () => {
   const terminal = new RecordingTerminal();
   const input = new PassThrough();
   (input as any).isTTY = false;

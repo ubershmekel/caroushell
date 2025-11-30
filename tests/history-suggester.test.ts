@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { HistorySuggester } from "../src/history-suggester";
 
-test("descriptionForAi lists newest history entries first", async (ctx) => {
+void test("descriptionForAi lists newest history entries first", async (ctx) => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "caroushell-history-")
   );
