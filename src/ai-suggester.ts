@@ -252,8 +252,9 @@ export class AISuggester implements Suggester {
       }
     }
 
-    const prompt = `You are a shell assistant. Given a partial shell input, suggest ${maxDisplayed}\
-useful, concise shell commands that the user might run next.\
+    const prompt = `You are a shell assistant. Given a partial shell input, \
+suggest ${maxDisplayed} useful, concise shell commands that the user might run \
+next.
 Return one suggestion per line, no numbering, no extra text.
 Return the whole suggestion, not just what remains to type out.
 
@@ -278,7 +279,7 @@ ${descriptions.join("\n\n")}
       .filter(Boolean)
       .slice(0, maxDisplayed);
 
-    logLine(`AI lines: ${lines.length}`);
+    logLine(`AI lines: ${lines}`);
     return lines;
   }
 }
