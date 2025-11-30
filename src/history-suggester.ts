@@ -49,6 +49,10 @@ export class HistorySuggester implements Suggester {
     );
   }
 
+  async onCommandRan(command: string) {
+    await this.add(command);
+  }
+
   latest(): string[] {
     return this.filteredItems;
   }

@@ -1,29 +1,45 @@
 import { Terminal, colors } from "./terminal";
 import { Keyboard, KeyEvent } from "./keyboard";
-import { Carousel } from "./carousel";
+import { Carousel, Suggester } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
 import { AISuggester } from "./ai-suggester";
 import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
+import { logLine } from "./logs";
+
+type FileSuggesterLike = Suggester & {
+  findUniqueMatch(prefix: string): Promise<string | null>;
+};
+
+type AppDeps = {
+  terminal?: Terminal;
+  keyboard?: Keyboard;
+  topPanel?: Suggester;
+  bottomPanel?: Suggester;
+  files?: FileSuggesterLike;
+  suggesters?: Suggester[];
+};
 
 export class App {
   terminal: Terminal;
   keyboard: Keyboard;
   carousel: Carousel;
 
-  private history: HistorySuggester;
-  private ai: AISuggester;
-  private files: FileSuggester;
+  private history: Suggester;
+  private ai: Suggester;
+  private files: FileSuggesterLike;
+  private suggesters: Suggester[];
   private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
   private queueUpdateSuggestions: () => void;
   private usingFileSuggestions = false;
 
-  constructor() {
-    this.terminal = new Terminal();
-    this.keyboard = new Keyboard();
-    this.history = new HistorySuggester();
-    this.ai = new AISuggester();
-    this.files = new FileSuggester();
+  constructor(deps: AppDeps = {}) {
+    this.terminal = deps.terminal ?? new Terminal();
+    this.keyboard = deps.keyboard ?? new Keyboard();
+    this.history = deps.topPanel ?? new HistorySuggester();
+    this.ai = deps.bottomPanel ?? new AISuggester();
+    this.files = deps.files ?? new FileSuggester();
+    this.suggesters = deps.suggesters ?? [this.history, this.ai, this.files];
     this.carousel = new Carousel({
       top: this.history,
       bottom: this.ai,
@@ -188,7 +204,7 @@ export class App {
     try {
       const storeInHistory = await runUserCommand(cmd);
       if (storeInHistory) {
-        await this.history.add(cmd);
+        await this.broadcastCommand(cmd);
       }
     } finally {
       this.terminal.enableWrites();
@@ -257,5 +273,17 @@ export class App {
     if (this.usingFileSuggestions) return;
     this.usingFileSuggestions = true;
     this.carousel.setTopSuggester(this.files);
+  }
+
+  private async broadcastCommand(cmd: string) {
+    const listeners = this.suggesters
+      .map((suggester) => suggester.onCommandRan?.(cmd))
+      .filter(Boolean) as Promise<void>[];
+    if (listeners.length === 0) return;
+    try {
+      await Promise.all(listeners);
+    } catch (err: any) {
+      logLine("suggester onCommandRan error: " + err?.message);
+    }
   }
 }

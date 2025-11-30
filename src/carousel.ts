@@ -7,6 +7,7 @@ export interface Suggester {
   refreshSuggestions(carousel: Carousel, maxDisplayed: number): Promise<void>;
   latest(): string[];
   descriptionForAi(): string;
+  onCommandRan?(command: string): Promise<void> | void;
 }
 
 export class Carousel {

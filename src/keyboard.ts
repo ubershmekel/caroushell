@@ -60,8 +60,13 @@ for (const seq of Object.keys(KEYMAP)) {
 export class Keyboard extends EventEmitter {
   private capturing = false;
   private buffer = '';
-  private stdin = process.stdin as NodeJS.ReadStream;
+  private stdin: NodeJS.ReadStream;
   private onData = (data: string) => this.handleData(data);
+
+  constructor(stdin: NodeJS.ReadStream = process.stdin as NodeJS.ReadStream) {
+    super();
+    this.stdin = stdin;
+  }
 
   enableCapture() {
     if (this.capturing) return;
