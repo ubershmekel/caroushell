@@ -69,6 +69,7 @@ function runStep(command: string, args: string[]) {
 ensureCleanGitState();
 
 runStep(npmCommand, ["run", "lint"]);
+runStep(npmCommand, ["run", "test"]);
 runStep(npmCommand, ["version", versionArgument]);
 runStep(npmCommand, ["run", "build"]);
 runStep(npmCommand, ["publish"]);
