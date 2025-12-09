@@ -208,6 +208,7 @@ export class App {
       }
     } finally {
       this.terminal.enableWrites();
+      this.terminal.reset();
       this.keyboard.enableCapture();
     }
   }

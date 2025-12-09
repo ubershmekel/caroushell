@@ -27,6 +27,14 @@ export class Terminal {
     this.writesDisabled = false;
   }
 
+  reset() {
+    // Some apps (such as vim) change the terminal cursor mode.
+    // We need to reset it to the default. To avoid arrow keys causing this:
+    // $> OAOBOCODODODODOAOAOCOB
+    const RESET_CURSOR_MODE = "\x1b[?1l";
+    this.write(RESET_CURSOR_MODE);
+  }
+
   private canWrite(): boolean {
     return !this.writesDisabled;
   }
