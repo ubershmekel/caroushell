@@ -5,6 +5,18 @@ import { logLine } from "./logs";
 const isWin = process.platform === "win32";
 const shellBinary = isWin ? "cmd.exe" : "/bin/bash";
 const shellArgs = isWin ? ["/d", "/s", "/c"] : ["-lc"];
+const dirStack: string[] = [];
+// Track last-known cwd per drive so `E:` switches like cmd.exe
+// into the folder you were in before switching drives.
+const driveCwds: Record<string, string> = {};
+
+function updateDriveCwd(cwd = process.cwd()) {
+  if (!isWin) return;
+  const drive = cwd.slice(0, 2).toUpperCase();
+  if (/^[A-Z]:$/.test(drive)) {
+    driveCwds[drive] = cwd;
+  }
+}
 
 const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
   cd: async (args: string[]) => {
@@ -15,10 +27,59 @@ const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
     const dest = expandVars(args[1]);
     try {
       process.chdir(dest);
+      updateDriveCwd();
     } catch (err: any) {
       process.stderr.write(`cd: ${err.message}\n`);
       return false;
     }
+    return true;
+  },
+  pushd: async (args: string[]) => {
+    const current = process.cwd();
+    if (args.length === 1) {
+      const next = dirStack.shift();
+      if (!next) {
+        process.stderr.write("pushd: no other directory\n");
+        return false;
+      }
+      dirStack.unshift(current);
+      try {
+        process.chdir(next);
+        updateDriveCwd();
+      } catch (err: any) {
+        process.stderr.write(`pushd: ${err.message}\n`);
+        dirStack.shift();
+        return false;
+      }
+      writeDirStack();
+      return true;
+    }
+    const dest = expandVars(args[1]);
+    try {
+      process.chdir(dest);
+      updateDriveCwd();
+    } catch (err: any) {
+      process.stderr.write(`pushd: ${err.message}\n`);
+      return false;
+    }
+    dirStack.unshift(current);
+    writeDirStack();
+    return true;
+  },
+  popd: async () => {
+    const next = dirStack.shift();
+    if (!next) {
+      process.stderr.write("popd: directory stack empty\n");
+      return false;
+    }
+    try {
+      process.chdir(next);
+      updateDriveCwd();
+    } catch (err: any) {
+      process.stderr.write(`popd: ${err.message}\n`);
+      return false;
+    }
+    writeDirStack();
     return true;
   },
   exit: async () => {
@@ -26,6 +87,11 @@ const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
     return false;
   },
 };
+
+function writeDirStack() {
+  const parts = [process.cwd(), ...dirStack];
+  process.stdout.write(parts.join(" ") + "\n");
+}
 
 function expandVars(input: string): string {
   let out = input;
@@ -51,6 +117,20 @@ export async function runUserCommand(command: string): Promise<boolean> {
   const trimmed = command.trim();
   if (!trimmed) return false;
 
+  if (isWin && /^[a-zA-Z]:$/.test(trimmed)) {
+    // Windows drive switch (eg "E:") should restore that drive's last cwd.
+    const drive = trimmed.toUpperCase();
+    const target = driveCwds[drive] ?? `${drive}\\`;
+    try {
+      process.chdir(target);
+      updateDriveCwd();
+      return true;
+    } catch (err: any) {
+      process.stderr.write(`${trimmed}: ${err.message}\n`);
+      return false;
+    }
+  }
+
   const args = command.split(/\s+/);
   if (typeof args[0] === "string" && builtInCommands[args[0]]) {
     return await builtInCommands[args[0]](args as string[]);
@@ -71,3 +151,5 @@ export async function runUserCommand(command: string): Promise<boolean> {
   // many times until we fix it.
   return true;
 }
+
+updateDriveCwd();
