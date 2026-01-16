@@ -106,7 +106,7 @@ void test("app prompt redraw keeps suggestion row intact", async () => {
     "prompt line shows the typed input"
   );
   assert.strictEqual(afterInput?.lines[1], baselineHistoryLine);
-  app.keyboard.disableCapture();
+  app.end();
 });
 
 void test("backslash continuation keeps multiline input until complete", async () => {
@@ -151,7 +151,7 @@ void test("backslash continuation keeps multiline input until complete", async (
   await delay(0);
 
   assert.deepEqual(ran, ["echo 123xyz"]);
-  app.keyboard.disableCapture();
+  app.end();
 });
 
 void test("up/down traverse multiline input before carousel selection", async () => {
@@ -199,7 +199,7 @@ void test("up/down traverse multiline input before carousel selection", async ()
   const historyIndex = findLineIndex(block?.lines ?? [], "history 2");
   assert.equal(historyIndex, 2);
 
-  app.keyboard.disableCapture();
+  app.end();
 });
 
 void test("down from multiline last line moves to ai suggestion", async () => {
@@ -241,5 +241,5 @@ void test("down from multiline last line moves to ai suggestion", async () => {
   assert.ok(block, "app rendered after moving to ai suggestion");
   assert.equal(block?.cursorRow, 3);
 
-  app.keyboard.disableCapture();
+  app.end();
 });

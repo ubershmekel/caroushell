@@ -36,6 +36,7 @@ export class App {
   private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
   private queueUpdateSuggestions: () => void;
   private usingFileSuggestions = false;
+  private onKeyHandler?: (evt: KeyEvent) => void;
 
   constructor(deps: AppDeps = {}) {
     this.terminal = deps.terminal ?? new Terminal();
@@ -170,13 +171,22 @@ export class App {
     await this.init();
     this.keyboard.enableCapture();
 
-    this.keyboard.on("key", (evt: KeyEvent) => {
+    this.onKeyHandler = (evt: KeyEvent) => {
       void this.handleKey(evt);
-    });
+    };
+    this.keyboard.on("key", this.onKeyHandler);
 
     // Initial draw
     this.render();
     await this.carousel.updateSuggestions();
+  }
+
+  end() {
+    if (this.onKeyHandler) {
+      this.keyboard.off("key", this.onKeyHandler);
+      this.onKeyHandler = undefined;
+    }
+    this.keyboard.disableCapture();
   }
 
   async handleKey(evt: KeyEvent) {
@@ -259,7 +269,7 @@ export class App {
   private exit() {
     // Clear terminal contents before shutting down to leave a clean screen.
     this.terminal.renderBlock([]);
-    this.keyboard.disableCapture();
+    this.end();
     process.exit(0);
   }
 
