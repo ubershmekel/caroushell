@@ -1,6 +1,63 @@
 import { logLine } from "./logs";
 import { Terminal, colors } from "./terminal";
 
+const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
+const COMBINING_MARK_REGEX = /^\p{Mark}+$/u;
+const EMOJI_REGEX = /\p{Extended_Pictographic}/u;
+const GRAPHEME_SEGMENTER =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter("en", { granularity: "grapheme" })
+    : null;
+
+function isFullWidthCodePoint(codePoint: number): boolean {
+  return (
+    codePoint >= 0x1100 &&
+    (codePoint <= 0x115f ||
+      codePoint === 0x2329 ||
+      codePoint === 0x232a ||
+      (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f) ||
+      (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+      (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+      (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+      (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+      (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+      (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+      (codePoint >= 0x1f300 && codePoint <= 0x1f6ff) ||
+      (codePoint >= 0x1f900 && codePoint <= 0x1f9ff) ||
+      (codePoint >= 0x1fa70 && codePoint <= 0x1faff) ||
+      (codePoint >= 0x20000 && codePoint <= 0x3fffd))
+  );
+}
+
+export function getDisplayWidth(text: string): number {
+  const stripped = text.replace(ANSI_ESCAPE_REGEX, "");
+  let width = 0;
+  if (GRAPHEME_SEGMENTER) {
+    for (const { segment } of GRAPHEME_SEGMENTER.segment(stripped)) {
+      if (!segment) continue;
+      if (COMBINING_MARK_REGEX.test(segment)) continue;
+      if (EMOJI_REGEX.test(segment)) {
+        width += 2;
+        continue;
+      }
+      const codePoint = segment.codePointAt(0) ?? 0;
+      width += isFullWidthCodePoint(codePoint) ? 2 : 1;
+    }
+    return width;
+  }
+
+  for (const char of stripped) {
+    if (COMBINING_MARK_REGEX.test(char)) continue;
+    if (EMOJI_REGEX.test(char)) {
+      width += 2;
+      continue;
+    }
+    const codePoint = char.codePointAt(0) ?? 0;
+    width += isFullWidthCodePoint(codePoint) ? 2 : 1;
+  }
+  return width;
+}
+
 export interface Suggester {
   prefix: string;
   init(): Promise<void>;
@@ -117,7 +174,7 @@ export class Carousel {
   private getSuggestionPrefix(rowIndex: number, rowStr: string): string {
     let prefix = this.getPrefixByIndex(rowIndex);
     if (this.index === rowIndex && rowIndex !== 0) {
-      prefix = "> ";
+      prefix = `${prefix}> `;
     }
     if (rowIndex !== 0 && !rowStr) {
       // The edge of the top or bottom panel
@@ -352,7 +409,8 @@ export class Carousel {
   private getPromptCursorColumn(): number {
     const info = this.getLineInfoAtPosition(this.cursorIndex);
     const prefix = this.getPromptPrefix(info.lineIndex);
-    return prefix.length + info.column;
+    const linePrefix = info.lineText.slice(0, info.column);
+    return getDisplayWidth(prefix) + getDisplayWidth(linePrefix);
   }
 
   private getLineInfoAtPosition(pos: number): LineInfo {
@@ -436,7 +494,11 @@ export class Carousel {
           const rowStr = this.getRow(rowIndex);
           const prefix = this.getSuggestionPrefix(rowIndex, rowStr);
           cursorRow = lines.length;
-          cursorCol = prefix.length + Math.min(this.cursorIndex, rowStr.length);
+          const cursorText = rowStr.slice(
+            0,
+            Math.min(this.cursorIndex, rowStr.length)
+          );
+          cursorCol = getDisplayWidth(prefix) + getDisplayWidth(cursorText);
         }
         lines.push(this.getFormattedSuggestionRow(rowIndex));
       }
