@@ -20,6 +20,10 @@ type AppDeps = {
   suggesters?: Suggester[];
 };
 
+function collapseLineContinuations(input: string): string {
+  return input.replace(/\\\r?\n/g, "");
+}
+
 export class App {
   terminal: Terminal;
   keyboard: Keyboard;
@@ -87,17 +91,11 @@ export class App {
         if (this.tryAcceptHighlightedFileSuggestion()) {
           return;
         }
-        const cmd = this.carousel.getCurrentRow().trim();
-        this.carousel.setInputBuffer("", 0);
-        await this.runCommand(cmd);
-        // Carousel should point to the prompt
-        this.carousel.resetIndex();
-        // After arbitrary output, reset render block tracking
-        this.terminal.resetBlockTracking();
-        // Render the prompt, without this we'd wait for the suggestions to call render
-        // and it would appear slow
-        this.render();
-        this.queueUpdateSuggestions();
+        if (this.carousel.isPromptRowSelected()) {
+          await this.enterOnPrompt();
+        } else {
+          await this.enterOnSuggestion();
+        }
       },
       char: (evt) => {
         this.carousel.insertAtCursor(evt.sequence);
@@ -107,10 +105,20 @@ export class App {
         this.queueUpdateSuggestions();
       },
       up: () => {
+        if (this.carousel.shouldUpMoveMultilineCursor()) {
+          this.carousel.moveMultilineCursorUp();
+          this.render();
+          return;
+        }
         this.carousel.up();
         this.render();
       },
       down: () => {
+        if (this.carousel.shouldDownMoveMultilineCursor()) {
+          this.carousel.moveMultilineCursorDown();
+          this.render();
+          return;
+        }
         this.carousel.down();
         this.render();
       },
@@ -211,6 +219,41 @@ export class App {
       this.terminal.reset();
       this.keyboard.enableCapture();
     }
+  }
+
+  private async enterOnPrompt() {
+    // Check for '\' line continuation
+    const lineInfo = this.carousel.getInputLineInfoAtCursor();
+    if (
+      lineInfo.lineText.endsWith("\\") &&
+      lineInfo.column === lineInfo.lineText.length
+    ) {
+      this.carousel.insertAtCursor("\n");
+      this.render();
+      this.queueUpdateSuggestions();
+      return;
+    }
+    const rawInput = this.carousel.getInputBuffer();
+    const cmd = collapseLineContinuations(rawInput).trim();
+    await this.confirmCommandRun(cmd);
+  }
+
+  private async enterOnSuggestion() {
+    const cmd = this.carousel.getCurrentRow().trim();
+    await this.confirmCommandRun(cmd);
+  }
+
+  private async confirmCommandRun(cmd: string) {
+    this.carousel.setInputBuffer("", 0);
+    await this.runCommand(cmd);
+    // Carousel should point to the prompt
+    this.carousel.resetIndex();
+    // After arbitrary output, reset render block tracking
+    this.terminal.resetBlockTracking();
+    // Render the prompt, without this we'd wait for the suggestions to call render
+    // and it would appear slow
+    this.render();
+    this.queueUpdateSuggestions();
   }
 
   private exit() {

@@ -25,6 +25,10 @@ class RecordingTerminal extends Terminal {
   }
 }
 
+function findLineIndex(lines: string[], snippet: string): number {
+  return lines.findIndex((line) => line.includes(snippet));
+}
+
 class StaticSuggester implements Suggester {
   prefix: string;
   private items: string[];
@@ -102,5 +106,140 @@ void test("app prompt redraw keeps suggestion row intact", async () => {
     "prompt line shows the typed input"
   );
   assert.strictEqual(afterInput?.lines[1], baselineHistoryLine);
+  app.keyboard.disableCapture();
+});
+
+void test("backslash continuation keeps multiline input until complete", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  (input as any).isTTY = false;
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+
+  const history = new StaticSuggester("H>", ["history 2", "history 1"]);
+  const ai = new StaticSuggester("A>", ["ai suggestion"]);
+  const files = new NullFileSuggester();
+
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    bottomPanel: ai,
+    files,
+    suggesters: [history, ai, files],
+  });
+
+  let ran: string[] = [];
+  (app as any).runCommand = async (cmd: string) => {
+    ran.push(cmd);
+  };
+
+  await app.run();
+  await delay(0);
+
+  input.write("echo 123\\");
+  input.write("\r");
+  await delay(0);
+  assert.equal(ran.length, 0);
+  assert.equal(app.carousel.getInputBuffer(), "echo 123\\\n");
+
+  input.write("x\\");
+  input.write("\r");
+  input.write("y\\");
+  input.write("\r");
+  input.write("z");
+  input.write("\r");
+  await delay(0);
+
+  assert.deepEqual(ran, ["echo 123xyz"]);
+  app.keyboard.disableCapture();
+});
+
+void test("up/down traverse multiline input before carousel selection", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  (input as any).isTTY = false;
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+
+  const history = new StaticSuggester("H>", ["history 2", "history 1"]);
+  const ai = new StaticSuggester("A>", ["ai suggestion"]);
+  const files = new NullFileSuggester();
+
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    bottomPanel: ai,
+    files,
+    suggesters: [history, ai, files],
+  });
+
+  await app.run();
+  await delay(0);
+
+  input.write("one\\");
+  input.write("\r");
+  input.write("two");
+  await delay(0);
+
+  assert.equal(app.carousel.getInputBuffer(), "one\\\ntwo");
+  assert.equal(app.carousel.getInputCursor(), 8);
+  assert.equal(app.carousel.isPromptRowSelected(), true);
+
+  input.write("\u001b[A");
+  await delay(0);
+  assert.equal(app.carousel.getInputCursor(), 3);
+  assert.equal(app.carousel.isPromptRowSelected(), true);
+
+  input.write("\u001b[A");
+  await delay(0);
+  assert.equal(app.carousel.isPromptRowSelected(), false);
+  assert.equal(app.carousel.getCurrentRow(), "history 2");
+  const block = terminal.lastBlock();
+  assert.ok(block, "app rendered after moving to history");
+  const historyIndex = findLineIndex(block?.lines ?? [], "history 2");
+  assert.equal(historyIndex, 2);
+
+  app.keyboard.disableCapture();
+});
+
+void test("down from multiline last line moves to ai suggestion", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  (input as any).isTTY = false;
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+
+  const history = new StaticSuggester("H>", ["history 2", "history 1"]);
+  const ai = new StaticSuggester("A>", ["ai suggestion"]);
+  const files = new NullFileSuggester();
+
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    bottomPanel: ai,
+    files,
+    suggesters: [history, ai, files],
+  });
+
+  await app.run();
+  await delay(0);
+
+  input.write("one\\");
+  input.write("\r");
+  input.write("two");
+  await delay(0);
+
+  assert.equal(app.carousel.getInputBuffer(), "one\\\ntwo");
+  assert.equal(app.carousel.getInputLineInfoAtCursor().lineIndex, 1);
+
+  input.write("\u001b[B");
+  await delay(0);
+
+  assert.equal(app.carousel.isPromptRowSelected(), false);
+  assert.equal(app.carousel.getCurrentRow(), "ai suggestion");
+  const block = terminal.lastBlock();
+  assert.ok(block, "app rendered after moving to ai suggestion");
+  assert.equal(block?.cursorRow, 3);
+
   app.keyboard.disableCapture();
 });

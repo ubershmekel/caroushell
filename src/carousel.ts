@@ -10,6 +10,21 @@ export interface Suggester {
   onCommandRan?(command: string): Promise<void> | void;
 }
 
+type LineInfo = {
+  // Full set of input lines split on "\n".
+  lines: string[];
+  // Index of the line containing the cursor.
+  lineIndex: number;
+  // The text of the current line (no trailing newline).
+  lineText: string;
+  // Absolute buffer index where this line starts.
+  lineStart: number;
+  // Absolute buffer index where this line ends.
+  lineEnd: number;
+  // Column position within the current line.
+  column: number;
+};
+
 export class Carousel {
   private top: Suggester;
   private bottom: Suggester;
@@ -85,10 +100,10 @@ export class Carousel {
     return "$> ";
   }
 
-  getFormattedRow(rowIndex: number): string {
+  private getFormattedSuggestionRow(rowIndex: number): string {
     const rowStr = this.getRow(rowIndex);
     let prefix = this.getPrefixByIndex(rowIndex);
-    const { brightWhite, reset, dim } = colors;
+    const { reset, dim } = colors;
     let color = dim;
     if (this.index === rowIndex) {
       color = colors.purple;
@@ -102,6 +117,17 @@ export class Carousel {
     }
 
     return `${color}${prefix}${rowStr}${reset}`;
+  }
+
+  private getFormattedPromptRow(
+    lineIndex: number,
+    lineText: string,
+    promptSelected: boolean
+  ): string {
+    const { reset, dim } = colors;
+    const color = promptSelected ? colors.purple : dim;
+    const prefix = this.getPromptPrefix(lineIndex);
+    return `${color}${prefix}${lineText}${reset}`;
   }
 
   getCurrentRow(): string {
@@ -122,11 +148,17 @@ export class Carousel {
     );
   }
 
+  getInputBuffer(): string {
+    return this.inputBuffer;
+  }
+
   resetIndex() {
     this.index = 0;
   }
 
   private adoptSelectionIntoInput() {
+    // When you highlighted a suggestion row (history/AI) and then type
+    // or edit, we want to pull that selected row into the input buffer
     if (this.index === 0) return;
     const current = this.getRow(this.index);
     this.setInputBuffer(current, current.length);
@@ -182,6 +214,38 @@ export class Carousel {
     this.inputCursor += 1;
   }
 
+  shouldUpMoveMultilineCursor(): boolean {
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    return this.isPromptRowSelected() && info.lineIndex > 0;
+  }
+
+  shouldDownMoveMultilineCursor(): boolean {
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    return (
+      this.isPromptRowSelected() && info.lineIndex < info.lines.length - 1
+    );
+  }
+
+  moveMultilineCursorUp() {
+    this.adoptSelectionIntoInput();
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    if (info.lineIndex === 0) return;
+    const targetIndex = info.lineIndex - 1;
+    const targetStart = this.getLineStartIndex(targetIndex, info.lines);
+    const targetLen = info.lines[targetIndex].length;
+    this.inputCursor = targetStart + Math.min(info.column, targetLen);
+  }
+
+  moveMultilineCursorDown() {
+    this.adoptSelectionIntoInput();
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    if (info.lineIndex >= info.lines.length - 1) return;
+    const targetIndex = info.lineIndex + 1;
+    const targetStart = this.getLineStartIndex(targetIndex, info.lines);
+    const targetLen = info.lines[targetIndex].length;
+    this.inputCursor = targetStart + Math.min(info.column, targetLen);
+  }
+
   moveCursorWordRight() {
     this.adoptSelectionIntoInput();
     if (this.inputCursor >= this.inputBuffer.length) return;
@@ -200,12 +264,12 @@ export class Carousel {
 
   moveCursorHome() {
     this.adoptSelectionIntoInput();
-    this.inputCursor = 0;
+    this.inputCursor = this.getLineInfoAtPosition(this.inputCursor).lineStart;
   }
 
   moveCursorEnd() {
     this.adoptSelectionIntoInput();
-    this.inputCursor = this.inputBuffer.length;
+    this.inputCursor = this.getLineInfoAtPosition(this.inputCursor).lineEnd;
   }
 
   deleteAtCursor() {
@@ -219,8 +283,12 @@ export class Carousel {
   deleteToLineStart() {
     this.adoptSelectionIntoInput();
     if (this.inputCursor === 0) return;
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    if (info.column === 0) return;
+    const before = this.inputBuffer.slice(0, info.lineStart);
     const after = this.inputBuffer.slice(this.inputCursor);
-    this.setInputBuffer(after, 0);
+    this.inputBuffer = `${before}${after}`;
+    this.inputCursor = info.lineStart;
   }
 
   clearInput() {
@@ -259,33 +327,102 @@ export class Carousel {
     };
   }
 
+  getInputLineInfoAtCursor() {
+    return this.getLineInfoAtPosition(this.inputCursor);
+  }
+
   private getPromptCursorColumn(): number {
-    const prefix = this.getPrefixByIndex(0);
-    return prefix.length + this.inputCursor;
+    const info = this.getLineInfoAtPosition(this.inputCursor);
+    const prefix = this.getPromptPrefix(info.lineIndex);
+    return prefix.length + info.column;
+  }
+
+  private getLineInfoAtPosition(pos: number): LineInfo {
+    // Map a buffer index to its line/column and line boundaries.
+    const lines = this.getInputLines();
+    let start = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const end = start + line.length;
+      if (pos <= end) {
+        // Cursor is on this line or at its end.
+        return {
+          lines,
+          lineIndex: i,
+          lineText: line,
+          lineStart: start,
+          lineEnd: end,
+          column: pos - start,
+        };
+      }
+      start = end + 1;
+    }
+    const lastIndex = Math.max(0, lines.length - 1);
+    const lastStart = Math.max(
+      0,
+      this.inputBuffer.length - lines[lastIndex].length
+    );
+    // Fallback when pos is beyond the buffer end.
+    return {
+      lines,
+      lineIndex: lastIndex,
+      lineText: lines[lastIndex] ?? "",
+      lineStart: lastStart,
+      lineEnd: lastStart + (lines[lastIndex]?.length ?? 0),
+      column: Math.max(0, pos - lastStart),
+    };
+  }
+
+  private getInputLines(): string[] {
+    return this.inputBuffer.split("\n");
+  }
+
+  private getLineStartIndex(lineIndex: number, lines: string[]): number {
+    let start = 0;
+    for (let i = 0; i < lineIndex; i++) {
+      start += lines[i].length + 1;
+    }
+    return start;
+  }
+
+  private getPromptPrefix(lineIndex: number): string {
+    return lineIndex === 0 ? "$> " : "> ";
   }
 
   render() {
     logLine("Rendering carousel");
-    // Draw all the lines
     const width = process.stdout.columns || 80;
-    const { brightWhite, reset, dim } = colors;
-    const lines: { text: string; rowIndex: number }[] = [];
-
-    const start = this.index + this.topRowCount;
+    const lines: string[] = [];
     const rowCount = this.topRowCount + this.bottomRowCount + 1;
+    const start = this.index + this.topRowCount;
     const end = start - rowCount;
-    for (let i = start; i > end; i--) {
-      lines.push({
-        rowIndex: i,
-        text: this.getFormattedRow(i).slice(0, width - 2),
-      });
-    }
+    const promptLines = this.getInputLines();
+    const promptSelected = this.index === 0;
+    const lineInfo = this.getLineInfoAtPosition(this.inputCursor);
+    let cursorRow = 0;
+    let cursorCol = 0;
 
-    const promptLineIndex = lines.findIndex((line) => line.rowIndex === 0);
-    const cursorRow = this.topRowCount;
-    const cursorCol = this.getPromptCursorColumn();
+    for (let rowIndex = start; rowIndex > end; rowIndex--) {
+      if (rowIndex === 0) {
+        for (let i = 0; i < promptLines.length; i++) {
+          if (this.index === 0 && i === lineInfo.lineIndex) {
+            cursorRow = lines.length;
+            cursorCol = this.getPromptCursorColumn();
+          }
+          lines.push(
+            this.getFormattedPromptRow(i, promptLines[i], promptSelected)
+          );
+        }
+      } else {
+        if (this.index === rowIndex) {
+          cursorRow = lines.length;
+          cursorCol = 2;
+        }
+        lines.push(this.getFormattedSuggestionRow(rowIndex));
+      }
+    }
     this.terminal.renderBlock(
-      lines.map((line) => line.text),
+      lines.map((line) => line.slice(0, width - 2)),
       cursorRow,
       cursorCol
     );
