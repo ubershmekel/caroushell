@@ -32,7 +32,7 @@ export class Carousel {
   private bottomRowCount: number;
   private index = 0;
   private inputBuffer: string = "";
-  private inputCursor = 0;
+  private cursorIndex = 0;
   private terminal: Terminal;
 
   constructor(opts: {
@@ -63,6 +63,7 @@ export class Carousel {
     if (this.index >= topLength) {
       this.index = topLength;
     }
+    this.clampCursorToActiveRow();
   }
 
   down() {
@@ -71,6 +72,7 @@ export class Carousel {
     if (-this.index >= bottomLength) {
       this.index = -bottomLength;
     }
+    this.clampCursorToActiveRow();
   }
 
   getRow(rowIndex: number): string {
@@ -102,21 +104,26 @@ export class Carousel {
 
   private getFormattedSuggestionRow(rowIndex: number): string {
     const rowStr = this.getRow(rowIndex);
-    let prefix = this.getPrefixByIndex(rowIndex);
+    let prefix = this.getSuggestionPrefix(rowIndex, rowStr);
     const { reset, dim } = colors;
     let color = dim;
     if (this.index === rowIndex) {
       color = colors.purple;
-      if (rowIndex !== 0) {
-        prefix = "> ";
-      }
+    }
+
+    return `${color}${prefix}${rowStr}${reset}`;
+  }
+
+  private getSuggestionPrefix(rowIndex: number, rowStr: string): string {
+    let prefix = this.getPrefixByIndex(rowIndex);
+    if (this.index === rowIndex && rowIndex !== 0) {
+      prefix = "> ";
     }
     if (rowIndex !== 0 && !rowStr) {
       // The edge of the top or bottom panel
       prefix = "---";
     }
-
-    return `${color}${prefix}${rowStr}${reset}`;
+    return prefix;
   }
 
   private getFormattedPromptRow(
@@ -142,7 +149,7 @@ export class Carousel {
 
   setInputBuffer(value: string, cursorPos: number = value.length) {
     this.inputBuffer = value;
-    this.inputCursor = Math.max(
+    this.cursorIndex = Math.max(
       0,
       Math.min(cursorPos, this.inputBuffer.length)
     );
@@ -154,6 +161,7 @@ export class Carousel {
 
   resetIndex() {
     this.index = 0;
+    this.cursorIndex = Math.min(this.cursorIndex, this.inputBuffer.length);
   }
 
   private adoptSelectionIntoInput() {
@@ -161,32 +169,45 @@ export class Carousel {
     // or edit, we want to pull that selected row into the input buffer
     if (this.index === 0) return;
     const current = this.getRow(this.index);
-    this.setInputBuffer(current, current.length);
+    this.setInputBuffer(current, Math.min(this.cursorIndex, current.length));
     this.index = 0;
+  }
+
+  private getActiveRowLength(): number {
+    if (this.isPromptRowSelected()) return this.inputBuffer.length;
+    return this.getRow(this.index).length;
+  }
+
+  private canMoveRight(): boolean {
+    return this.cursorIndex < this.getActiveRowLength();
+  }
+
+  private clampCursorToActiveRow() {
+    const len = this.getActiveRowLength();
+    this.cursorIndex = Math.max(0, Math.min(this.cursorIndex, len));
   }
 
   insertAtCursor(text: string) {
     if (!text) return;
     this.adoptSelectionIntoInput();
-    const before = this.inputBuffer.slice(0, this.inputCursor);
-    const after = this.inputBuffer.slice(this.inputCursor);
+    const before = this.inputBuffer.slice(0, this.cursorIndex);
+    const after = this.inputBuffer.slice(this.cursorIndex);
     this.inputBuffer = `${before}${text}${after}`;
-    this.inputCursor += text.length;
+    this.cursorIndex += text.length;
   }
 
   deleteBeforeCursor() {
     this.adoptSelectionIntoInput();
-    if (this.inputCursor === 0) return;
-    const before = this.inputBuffer.slice(0, this.inputCursor - 1);
-    const after = this.inputBuffer.slice(this.inputCursor);
+    if (this.cursorIndex === 0) return;
+    const before = this.inputBuffer.slice(0, this.cursorIndex - 1);
+    const after = this.inputBuffer.slice(this.cursorIndex);
     this.inputBuffer = `${before}${after}`;
-    this.inputCursor -= 1;
+    this.cursorIndex -= 1;
   }
 
   moveCursorLeft() {
-    this.adoptSelectionIntoInput();
-    if (this.inputCursor === 0) return;
-    this.inputCursor -= 1;
+    if (this.cursorIndex === 0) return;
+    this.cursorIndex -= 1;
   }
 
   private isWhitespace(char: string) {
@@ -195,8 +216,8 @@ export class Carousel {
 
   moveCursorWordLeft() {
     this.adoptSelectionIntoInput();
-    if (this.inputCursor === 0) return;
-    let pos = this.inputCursor;
+    if (this.cursorIndex === 0) return;
+    let pos = this.cursorIndex;
     // Skip any whitespace directly to the left of the cursor
     while (pos > 0 && this.isWhitespace(this.inputBuffer[pos - 1])) {
       pos -= 1;
@@ -205,51 +226,48 @@ export class Carousel {
     while (pos > 0 && !this.isWhitespace(this.inputBuffer[pos - 1])) {
       pos -= 1;
     }
-    this.inputCursor = pos;
+    this.cursorIndex = pos;
   }
 
   moveCursorRight() {
-    this.adoptSelectionIntoInput();
-    if (this.inputCursor >= this.inputBuffer.length) return;
-    this.inputCursor += 1;
+    if (!this.canMoveRight()) return;
+    this.cursorIndex += 1;
   }
 
   shouldUpMoveMultilineCursor(): boolean {
-    const info = this.getLineInfoAtPosition(this.inputCursor);
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
     return this.isPromptRowSelected() && info.lineIndex > 0;
   }
 
   shouldDownMoveMultilineCursor(): boolean {
-    const info = this.getLineInfoAtPosition(this.inputCursor);
-    return (
-      this.isPromptRowSelected() && info.lineIndex < info.lines.length - 1
-    );
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
+    return this.isPromptRowSelected() && info.lineIndex < info.lines.length - 1;
   }
 
   moveMultilineCursorUp() {
     this.adoptSelectionIntoInput();
-    const info = this.getLineInfoAtPosition(this.inputCursor);
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
     if (info.lineIndex === 0) return;
     const targetIndex = info.lineIndex - 1;
     const targetStart = this.getLineStartIndex(targetIndex, info.lines);
     const targetLen = info.lines[targetIndex].length;
-    this.inputCursor = targetStart + Math.min(info.column, targetLen);
+    this.cursorIndex = targetStart + Math.min(info.column, targetLen);
   }
 
   moveMultilineCursorDown() {
     this.adoptSelectionIntoInput();
-    const info = this.getLineInfoAtPosition(this.inputCursor);
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
     if (info.lineIndex >= info.lines.length - 1) return;
     const targetIndex = info.lineIndex + 1;
     const targetStart = this.getLineStartIndex(targetIndex, info.lines);
     const targetLen = info.lines[targetIndex].length;
-    this.inputCursor = targetStart + Math.min(info.column, targetLen);
+    this.cursorIndex = targetStart + Math.min(info.column, targetLen);
   }
 
   moveCursorWordRight() {
     this.adoptSelectionIntoInput();
-    if (this.inputCursor >= this.inputBuffer.length) return;
-    let pos = this.inputCursor;
+    if (this.cursorIndex >= this.inputBuffer.length) return;
+    let pos = this.cursorIndex;
     const len = this.inputBuffer.length;
     // Skip any whitespace to the right of the cursor
     while (pos < len && this.isWhitespace(this.inputBuffer[pos])) {
@@ -259,36 +277,36 @@ export class Carousel {
     while (pos < len && !this.isWhitespace(this.inputBuffer[pos])) {
       pos += 1;
     }
-    this.inputCursor = pos;
+    this.cursorIndex = pos;
   }
 
   moveCursorHome() {
     this.adoptSelectionIntoInput();
-    this.inputCursor = this.getLineInfoAtPosition(this.inputCursor).lineStart;
+    this.cursorIndex = this.getLineInfoAtPosition(this.cursorIndex).lineStart;
   }
 
   moveCursorEnd() {
     this.adoptSelectionIntoInput();
-    this.inputCursor = this.getLineInfoAtPosition(this.inputCursor).lineEnd;
+    this.cursorIndex = this.getLineInfoAtPosition(this.cursorIndex).lineEnd;
   }
 
   deleteAtCursor() {
     this.adoptSelectionIntoInput();
-    if (this.inputCursor >= this.inputBuffer.length) return;
-    const before = this.inputBuffer.slice(0, this.inputCursor);
-    const after = this.inputBuffer.slice(this.inputCursor + 1);
+    if (this.cursorIndex >= this.inputBuffer.length) return;
+    const before = this.inputBuffer.slice(0, this.cursorIndex);
+    const after = this.inputBuffer.slice(this.cursorIndex + 1);
     this.inputBuffer = `${before}${after}`;
   }
 
   deleteToLineStart() {
     this.adoptSelectionIntoInput();
-    if (this.inputCursor === 0) return;
-    const info = this.getLineInfoAtPosition(this.inputCursor);
+    if (this.cursorIndex === 0) return;
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
     if (info.column === 0) return;
     const before = this.inputBuffer.slice(0, info.lineStart);
-    const after = this.inputBuffer.slice(this.inputCursor);
+    const after = this.inputBuffer.slice(this.cursorIndex);
     this.inputBuffer = `${before}${after}`;
-    this.inputCursor = info.lineStart;
+    this.cursorIndex = info.lineStart;
   }
 
   clearInput() {
@@ -306,15 +324,15 @@ export class Carousel {
   }
 
   getInputCursor(): number {
-    return this.inputCursor;
+    return this.cursorIndex;
   }
 
   getWordInfoAtCursor() {
-    let start = this.inputCursor;
+    let start = this.cursorIndex;
     while (start > 0 && !this.isWhitespace(this.inputBuffer[start - 1])) {
       start -= 1;
     }
-    let end = this.inputCursor;
+    let end = this.cursorIndex;
     const len = this.inputBuffer.length;
     while (end < len && !this.isWhitespace(this.inputBuffer[end])) {
       end += 1;
@@ -322,17 +340,17 @@ export class Carousel {
     return {
       start,
       end,
-      prefix: this.inputBuffer.slice(start, this.inputCursor),
+      prefix: this.inputBuffer.slice(start, this.cursorIndex),
       word: this.inputBuffer.slice(start, end),
     };
   }
 
   getInputLineInfoAtCursor() {
-    return this.getLineInfoAtPosition(this.inputCursor);
+    return this.getLineInfoAtPosition(this.cursorIndex);
   }
 
   private getPromptCursorColumn(): number {
-    const info = this.getLineInfoAtPosition(this.inputCursor);
+    const info = this.getLineInfoAtPosition(this.cursorIndex);
     const prefix = this.getPromptPrefix(info.lineIndex);
     return prefix.length + info.column;
   }
@@ -398,7 +416,7 @@ export class Carousel {
     const end = start - rowCount;
     const promptLines = this.getInputLines();
     const promptSelected = this.index === 0;
-    const lineInfo = this.getLineInfoAtPosition(this.inputCursor);
+    const lineInfo = this.getLineInfoAtPosition(this.cursorIndex);
     let cursorRow = 0;
     let cursorCol = 0;
 
@@ -415,8 +433,10 @@ export class Carousel {
         }
       } else {
         if (this.index === rowIndex) {
+          const rowStr = this.getRow(rowIndex);
+          const prefix = this.getSuggestionPrefix(rowIndex, rowStr);
           cursorRow = lines.length;
-          cursorCol = 2;
+          cursorCol = prefix.length + Math.min(this.cursorIndex, rowStr.length);
         }
         lines.push(this.getFormattedSuggestionRow(rowIndex));
       }
