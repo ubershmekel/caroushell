@@ -10,6 +10,7 @@ const VALID_TYPES = new Set([
   "premajor",
 ]);
 
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const rawArg = process.argv[2] ?? "patch";
 const normalizedArg = rawArg.toLowerCase();
 const semverRegex = /^\d+\.\d+\.\d+(-[\da-z.-]+)?$/i;
@@ -48,8 +49,6 @@ function ensureCleanGitState() {
     process.exit(1);
   }
 }
-
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function runStep(command: string, args: string[]) {
   console.log(`\n$ ${command} ${args.join(" ")}`);

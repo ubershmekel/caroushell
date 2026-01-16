@@ -138,7 +138,7 @@ export async function listModels(
 ): Promise<string[]> {
   const url = apiUrl.replace("/chat/completions", "") + "/models";
   const res = await fetch(url, { headers: headers(apiKey) });
-  const models: ListModelsResponse = await res.json();
+  const models: ListModelsResponse = (await res.json()) as ListModelsResponse;
   return models.data.map((m) => m.id);
 }
 
