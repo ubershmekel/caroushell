@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { App } from "../src/app";
 import type { Carousel, Suggester } from "../src/carousel";
-import { Keyboard } from "../src/keyboard";
+import { Keyboard, keySequence } from "../src/keyboard";
 import { Terminal } from "../src/terminal";
 
 class RecordingTerminal extends Terminal {
@@ -137,17 +137,17 @@ void test("backslash continuation keeps multiline input until complete", async (
   await delay(0);
 
   input.write("echo 123\\");
-  input.write("\r");
+  input.write(keySequence("enter"));
   await delay(0);
   assert.equal(ran.length, 0);
   assert.equal(app.carousel.getInputBuffer(), "echo 123\\\n");
 
   input.write("x\\");
-  input.write("\r");
+  input.write(keySequence("enter"));
   input.write("y\\");
-  input.write("\r");
+  input.write(keySequence("enter"));
   input.write("z");
-  input.write("\r");
+  input.write(keySequence("enter"));
   await delay(0);
 
   assert.deepEqual(ran, ["echo 123xyz"]);
@@ -177,7 +177,7 @@ void test("up/down traverse multiline input before carousel selection", async ()
   await delay(0);
 
   input.write("one\\");
-  input.write("\r");
+  input.write(keySequence("enter"));
   input.write("two");
   await delay(0);
 
@@ -185,12 +185,12 @@ void test("up/down traverse multiline input before carousel selection", async ()
   assert.equal(app.carousel.getInputCursor(), 8);
   assert.equal(app.carousel.isPromptRowSelected(), true);
 
-  input.write("\u001b[A");
+  input.write(keySequence("up"));
   await delay(0);
   assert.equal(app.carousel.getInputCursor(), 3);
   assert.equal(app.carousel.isPromptRowSelected(), true);
 
-  input.write("\u001b[A");
+  input.write(keySequence("up"));
   await delay(0);
   assert.equal(app.carousel.isPromptRowSelected(), false);
   assert.equal(app.carousel.getCurrentRow(), "history 2");
@@ -225,14 +225,14 @@ void test("down from multiline last line moves to ai suggestion", async () => {
   await delay(0);
 
   input.write("one\\");
-  input.write("\r");
+  input.write(keySequence("enter"));
   input.write("two");
   await delay(0);
 
   assert.equal(app.carousel.getInputBuffer(), "one\\\ntwo");
   assert.equal(app.carousel.getInputLineInfoAtCursor().lineIndex, 1);
 
-  input.write("\u001b[B");
+  input.write(keySequence("down"));
   await delay(0);
 
   assert.equal(app.carousel.isPromptRowSelected(), false);

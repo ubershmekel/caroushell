@@ -1,53 +1,88 @@
 import { EventEmitter } from 'events';
 
-export type KeyEvent = {
-  name: string;
+type KeySpec = {
   sequence: string;
   ctrl?: boolean;
   meta?: boolean;
   shift?: boolean;
 };
 
-// Map escape/control sequences to semantic key names
-const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {
+// Map semantic key names to escape/control sequences
+const KEY_DEFINITIONS: Record<string, KeySpec[]> = {
   // Control keys
-  '\u0003': { name: 'ctrl-c', ctrl: true }, // ^C
-  '\u0004': { name: 'ctrl-d', ctrl: true }, // ^D
-  '\u0015': { name: 'ctrl-u', ctrl: true }, // ^U
-  '\t': { name: 'tab' },
-  '\r': { name: 'enter' },
-  '\n': { name: 'enter' },
-  '\u007f': { name: 'backspace' }, // DEL
-  '\u0008': { name: 'backspace' }, // BS (Windows)
-  '\u001b': { name: 'escape' },
+  'ctrl-c': [{ sequence: '\u0003', ctrl: true }], // ^C
+  'ctrl-d': [{ sequence: '\u0004', ctrl: true }], // ^D
+  'ctrl-u': [{ sequence: '\u0015', ctrl: true }], // ^U
+  tab: [{ sequence: '\t' }],
+  enter: [{ sequence: '\r' }, { sequence: '\n' }],
+  backspace: [{ sequence: '\u007f' }, { sequence: '\u0008' }], // DEL, BS (Windows)
+  escape: [{ sequence: '\u001b' }],
 
   // Arrows (ANSI)
-  '\u001b[A': { name: 'up' },
-  '\u001b[B': { name: 'down' },
-  '\u001b[C': { name: 'right' },
-  '\u001b[D': { name: 'left' },
-  '\u001b[1;5C': { name: 'ctrl-right', ctrl: true },
-  '\u001b[1;5D': { name: 'ctrl-left', ctrl: true },
-  '\u001b[5C': { name: 'ctrl-right', ctrl: true },
-  '\u001b[5D': { name: 'ctrl-left', ctrl: true },
-  // Option/Alt-based word jumps (macOS/iTerm send meta-modified arrows or ESC+b/f)
-  '\u001b[1;3C': { name: 'ctrl-right', meta: true },
-  '\u001b[1;3D': { name: 'ctrl-left', meta: true },
-  '\u001b[1;9C': { name: 'ctrl-right', meta: true },
-  '\u001b[1;9D': { name: 'ctrl-left', meta: true },
-  '\u001bf': { name: 'ctrl-right', meta: true },
-  '\u001bb': { name: 'ctrl-left', meta: true },
+  up: [{ sequence: '\u001b[A' }],
+  down: [{ sequence: '\u001b[B' }],
+  right: [{ sequence: '\u001b[C' }],
+  left: [{ sequence: '\u001b[D' }],
+  'ctrl-right': [
+    { sequence: '\u001b[1;5C', ctrl: true },
+    { sequence: '\u001b[5C', ctrl: true },
+    // Option/Alt-based word jumps (macOS/iTerm send meta-modified arrows or ESC+b/f)
+    { sequence: '\u001b[1;3C', meta: true },
+    { sequence: '\u001b[1;9C', meta: true },
+    { sequence: '\u001bf', meta: true },
+  ],
+  'ctrl-left': [
+    { sequence: '\u001b[1;5D', ctrl: true },
+    { sequence: '\u001b[5D', ctrl: true },
+    // Option/Alt-based word jumps (macOS/iTerm send meta-modified arrows or ESC+b/f)
+    { sequence: '\u001b[1;3D', meta: true },
+    { sequence: '\u001b[1;9D', meta: true },
+    { sequence: '\u001bb', meta: true },
+  ],
 
   // Home/End/Delete variants
-  '\u001b[H': { name: 'home' },
-  '\u001b[F': { name: 'end' },
-  '\u001b[1~': { name: 'home' },
-  '\u001b[4~': { name: 'end' },
-  '\u001b[3~': { name: 'delete' },
+  home: [{ sequence: '\u001b[H' }, { sequence: '\u001b[1~' }],
+  end: [{ sequence: '\u001b[F' }, { sequence: '\u001b[4~' }],
+  delete: [{ sequence: '\u001b[3~' }],
+
   // Focus in/out (sent by some terminals on focus change - swallow these)
-  '\u001b[I': { name: 'focus-in' },
-  '\u001b[O': { name: 'focus-out' },
+  'focus-in': [{ sequence: '\u001b[I' }],
+  'focus-out': [{ sequence: '\u001b[O' }],
 };
+
+export type KeyName = keyof typeof KEY_DEFINITIONS | "char";
+
+export type KeyEvent = {
+  name: KeyName;
+  sequence: string;
+  ctrl?: boolean;
+  meta?: boolean;
+  shift?: boolean;
+};
+
+export const KEY_SEQUENCES: Record<string, string[]> = Object.fromEntries(
+  Object.entries(KEY_DEFINITIONS).map(([name, defs]) => [
+    name,
+    defs.map((def) => def.sequence),
+  ])
+);
+
+export function keySequence(name: keyof typeof KEY_SEQUENCES): string {
+  return KEY_SEQUENCES[name][0];
+}
+
+// Map escape/control sequences to semantic key names
+const KEYMAP: Record<string, Omit<KeyEvent, 'sequence'>> = {};
+for (const [name, defs] of Object.entries(KEY_DEFINITIONS)) {
+  for (const def of defs) {
+    KEYMAP[def.sequence] = {
+      name,
+      ctrl: def.ctrl,
+      meta: def.meta,
+      shift: def.shift,
+    };
+  }
+}
 
 // For efficient prefix checks
 const KEY_PREFIXES = new Set<string>();

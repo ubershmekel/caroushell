@@ -33,7 +33,9 @@ export class App {
   private ai: Suggester;
   private files: FileSuggesterLike;
   private suggesters: Suggester[];
-  private handlers: Record<string, (evt: KeyEvent) => void | Promise<void>>;
+  private handlers: Partial<
+    Record<KeyEvent["name"], (evt: KeyEvent) => void | Promise<void>>
+  >;
   private queueUpdateSuggestions: () => void;
   private usingFileSuggestions = false;
   private onKeyHandler?: (evt: KeyEvent) => void;
