@@ -143,10 +143,18 @@ export async function runUserCommand(command: string): Promise<boolean> {
     windowsVerbatimArguments: true,
   });
 
-  await new Promise<void>((resolve, reject) => {
-    proc.on("error", reject);
-    proc.on("close", () => resolve());
-  });
+  // While a user command owns the terminal, Ctrl+C should interrupt that command
+  // without taking down the parent Caroushell process.
+  const ignoreSigint = () => {};
+  process.on("SIGINT", ignoreSigint);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      proc.on("error", reject);
+      proc.on("close", () => resolve());
+    });
+  } finally {
+    process.off("SIGINT", ignoreSigint);
+  }
   // Why save failed commands? Well eg sometimes we want to run a test
   // many times until we fix it.
   return true;

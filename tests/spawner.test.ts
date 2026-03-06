@@ -109,3 +109,37 @@ void test("windows drive change commands switch cwd", async (t) => {
     process.chdir(original);
   }
 });
+
+void test("runUserCommand temporarily registers SIGINT protection", async () => {
+  // I wonder if this is a good test or not.
+  // It would be cooler if we could run something that would throw a Ctrl-C
+  // and see how caroushell handles it.
+  const originalOn = process.on;
+  const originalOff = process.off;
+  let sigintAdded = 0;
+  let sigintRemoved = 0;
+
+  process.on = ((event: any, listener: any) => {
+    if (event === "SIGINT") {
+      sigintAdded += 1;
+    }
+    return originalOn.call(process, event, listener);
+  }) as typeof process.on;
+
+  process.off = ((event: any, listener: any) => {
+    if (event === "SIGINT") {
+      sigintRemoved += 1;
+    }
+    return originalOff.call(process, event, listener);
+  }) as typeof process.off;
+
+  try {
+    await runUserCommand('node -e "setTimeout(() => process.exit(0), 20)"');
+  } finally {
+    process.on = originalOn;
+    process.off = originalOff;
+  }
+
+  assert.equal(sigintAdded, 1);
+  assert.equal(sigintRemoved, 1);
+});
