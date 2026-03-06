@@ -45,13 +45,15 @@ export class HistorySuggester implements Suggester {
     await fs.appendFile(
       this.filePath,
       this.serializeHistoryEntry(command),
-      "utf8"
+      "utf8",
     );
   }
 
-  async onCommandRan(command: string) {
+  async onCommandWillRun(command: string) {
     await this.add(command);
   }
+
+  async onCommandRan(command: string) {}
 
   latest(): string[] {
     return this.filteredItems;
@@ -59,7 +61,7 @@ export class HistorySuggester implements Suggester {
 
   async refreshSuggestions(
     carousel: Carousel,
-    maxDisplayed: number
+    maxDisplayed: number,
   ): Promise<void> {
     const input = carousel.getCurrentRow();
     let suggestedItems = this.items;

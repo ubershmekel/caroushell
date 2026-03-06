@@ -221,6 +221,7 @@ export class App {
 
     this.keyboard.disableCapture();
     this.terminal.disableWrites();
+    await this.preBroadcastCommand(cmd);
     try {
       const storeInHistory = await runUserCommand(cmd);
       if (storeInHistory) {
@@ -329,6 +330,18 @@ export class App {
     if (this.usingFileSuggestions) return;
     this.usingFileSuggestions = true;
     this.carousel.setTopSuggester(this.files);
+  }
+
+  private async preBroadcastCommand(cmd: string) {
+    const listeners = this.suggesters
+      .map((suggester) => suggester.onCommandWillRun?.(cmd))
+      .filter(Boolean) as Promise<void>[];
+    if (listeners.length === 0) return;
+    try {
+      await Promise.all(listeners);
+    } catch (err: any) {
+      logLine("suggester onCommandWillRun error: " + err?.message);
+    }
   }
 
   private async broadcastCommand(cmd: string) {
