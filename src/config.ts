@@ -57,7 +57,6 @@ export async function doesConfigExist(): Promise<boolean> {
 }
 
 export async function getConfig(): Promise<Config> {
-  const configPath = getConfigPath();
   const raw = await readConfigFile();
   const envApiKey =
     process.env.CAROUSHELL_API_KEY || process.env.GEMINI_API_KEY || undefined;
@@ -79,12 +78,6 @@ export async function getConfig(): Promise<Config> {
   }
   if (!resolved.model && geminiApiKey) {
     resolved.model = GEMINI_DEFAULT_MODEL;
-  }
-
-  if (!resolved.apiUrl || !resolved.apiKey || !resolved.model) {
-    throw new Error(
-      `Config at ${configPath} is missing required fields. Please include apiUrl, apiKey, and model (or just GEMINI_API_KEY).`
-    );
   }
 
   return resolved;

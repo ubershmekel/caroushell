@@ -2,9 +2,11 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { App } from "./app";
+import { AISuggester } from "./ai-suggester";
+import { NullSuggester } from "./carousel";
 import { runHelloNewUserFlow } from "./hello-new-user";
 import { ensureLogFolderExists, logLine } from "./logs";
-import { doesConfigExist, getConfigPath } from "./config";
+import { doesConfigExist, getConfigPath, getConfig } from "./config";
 
 function shouldPrintVersion(): boolean {
   return process.argv.includes("--version");
@@ -26,7 +28,12 @@ async function main() {
   if (!(await doesConfigExist())) {
     await runHelloNewUserFlow(getConfigPath());
   }
-  const app = new App();
+  const config = await getConfig();
+  const bottomPanel =
+    config.apiUrl && config.apiKey && config.model
+      ? new AISuggester()
+      : new NullSuggester();
+  const app = new App({ bottomPanel });
   await app.run();
 }
 

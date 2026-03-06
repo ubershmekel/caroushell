@@ -1,8 +1,7 @@
 import { Terminal, colors } from "./terminal";
 import { Keyboard, KeyEvent } from "./keyboard";
-import { Carousel, Suggester } from "./carousel";
+import { Carousel, NullSuggester, Suggester } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
-import { AISuggester } from "./ai-suggester";
 import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
 import { logLine } from "./logs";
@@ -30,7 +29,7 @@ export class App {
   carousel: Carousel;
 
   private history: Suggester;
-  private ai: Suggester;
+  private bottomSuggester: Suggester;
   private files: FileSuggesterLike;
   private suggesters: Suggester[];
   private handlers: Partial<
@@ -44,14 +43,14 @@ export class App {
     this.terminal = deps.terminal ?? new Terminal();
     this.keyboard = deps.keyboard ?? new Keyboard();
     this.history = deps.topPanel ?? new HistorySuggester();
-    this.ai = deps.bottomPanel ?? new AISuggester();
+    this.bottomSuggester = deps.bottomPanel ?? new NullSuggester();
     this.files = deps.files ?? new FileSuggester();
-    this.suggesters = deps.suggesters ?? [this.history, this.ai, this.files];
+    this.suggesters = deps.suggesters ?? [this.history, this.bottomSuggester, this.files];
     this.carousel = new Carousel({
       top: this.history,
-      bottom: this.ai,
+      bottom: this.bottomSuggester,
       topRows: 2,
-      bottomRows: 2,
+      bottomRows: this.bottomSuggester instanceof NullSuggester ? 0 : 2,
       terminal: this.terminal,
     });
 
@@ -164,9 +163,9 @@ export class App {
   }
 
   async init() {
-    await this.history.init();
-    await this.ai.init();
-    await this.files.init();
+    for (const s of this.suggesters) {
+      await s.init();
+    }
   }
 
   async run() {

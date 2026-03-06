@@ -31,7 +31,7 @@ type BuiltRequest = {
 
 function debounceAsync<T extends (...args: any[]) => Promise<any>>(
   fn: T,
-  delayMs: number
+  delayMs: number,
 ) {
   let tim: NodeJS.Timeout | null = null;
   let rejectLast: ((reason?: unknown) => void) | null = null;
@@ -55,7 +55,7 @@ function debounceAsync<T extends (...args: any[]) => Promise<any>>(
 
 export async function generateContent(
   prompt: string,
-  options?: GenerateContentOptions
+  options?: GenerateContentOptions,
 ): Promise<string> {
   const apiKey =
     options?.apiKey ||
@@ -134,7 +134,7 @@ export interface ListModelsModel {
 
 export async function listModels(
   apiUrl: string,
-  apiKey: string
+  apiKey: string,
 ): Promise<string[]> {
   const url = apiUrl.replace("/chat/completions", "") + "/models";
   const res = await fetch(url, { headers: headers(apiKey) });
@@ -219,7 +219,7 @@ export class AISuggester implements Suggester {
 
   async refreshSuggestions(
     carousel: Carousel,
-    maxDisplayed: number
+    maxDisplayed: number,
   ): Promise<void> {
     if (!this.apiKey || !this.apiUrl || !this.model) {
       logLine("AI generation skipped: missing API configuration");
@@ -242,7 +242,7 @@ export class AISuggester implements Suggester {
 
   private async runSuggestNow(
     carousel: Carousel,
-    maxDisplayed: number
+    maxDisplayed: number,
   ): Promise<string[]> {
     const descriptions = [];
     for (const suggester of carousel.getSuggesters()) {

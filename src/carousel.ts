@@ -68,6 +68,14 @@ export interface Suggester {
   onCommandRan?(command: string): Promise<void> | void;
 }
 
+export class NullSuggester implements Suggester {
+  prefix = "";
+  async init() {}
+  async refreshSuggestions() {}
+  latest() { return []; }
+  descriptionForAi() { return ""; }
+}
+
 type LineInfo = {
   // Full set of input lines split on "\n".
   lines: string[];
