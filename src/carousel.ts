@@ -72,8 +72,12 @@ export class NullSuggester implements Suggester {
   prefix = "";
   async init() {}
   async refreshSuggestions() {}
-  latest() { return []; }
-  descriptionForAi() { return ""; }
+  latest() {
+    return [];
+  }
+  descriptionForAi() {
+    return "";
+  }
 }
 
 type LineInfo = {
@@ -198,12 +202,22 @@ export class Carousel {
   private getFormattedPromptRow(
     lineIndex: number,
     lineText: string,
-    promptSelected: boolean
+    promptSelected: boolean,
   ): string {
-    const { reset, dim } = colors;
+    const { reset, dimmest, dim } = colors;
     const color = promptSelected ? colors.purple : dim;
+    const separatorColor = promptSelected ? dim : dimmest;
     const prefix = this.getPromptPrefix(lineIndex);
-    return `${color}${prefix}${lineText}${reset}`;
+    // Color the separators differently from the prompt prefix
+    const formattedPrefix = prefix
+      .split("")
+      .map((char) =>
+        char === ":" || char === ">"
+          ? `${separatorColor}${char}${color}`
+          : char,
+      )
+      .join("");
+    return `${color}${formattedPrefix}${lineText}${reset}`;
   }
 
   getCurrentRow(): string {
@@ -220,7 +234,7 @@ export class Carousel {
     this.inputBuffer = value;
     this.cursorIndex = Math.max(
       0,
-      Math.min(cursorPos, this.inputBuffer.length)
+      Math.min(cursorPos, this.inputBuffer.length),
     );
   }
 
@@ -448,7 +462,7 @@ export class Carousel {
     const lastIndex = Math.max(0, lines.length - 1);
     const lastStart = Math.max(
       0,
-      this.inputBuffer.length - lines[lastIndex].length
+      this.inputBuffer.length - lines[lastIndex].length,
     );
     // Fallback when pos is beyond the buffer end.
     return {
@@ -498,7 +512,7 @@ export class Carousel {
             cursorCol = this.getPromptCursorColumn();
           }
           lines.push(
-            this.getFormattedPromptRow(i, promptLines[i], promptSelected)
+            this.getFormattedPromptRow(i, promptLines[i], promptSelected),
           );
         }
       } else {
@@ -508,7 +522,7 @@ export class Carousel {
           cursorRow = lines.length;
           const cursorText = rowStr.slice(
             0,
-            Math.min(this.cursorIndex, rowStr.length)
+            Math.min(this.cursorIndex, rowStr.length),
           );
           cursorCol = getDisplayWidth(prefix) + getDisplayWidth(cursorText);
         }
@@ -518,7 +532,7 @@ export class Carousel {
     this.terminal.renderBlock(
       lines.map((line) => line.slice(0, width - 2)),
       cursorRow,
-      cursorCol
+      cursorCol,
     );
   }
 

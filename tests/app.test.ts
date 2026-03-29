@@ -8,6 +8,8 @@ import type { Carousel, Suggester } from "../src/carousel";
 import { Keyboard, keySequence } from "../src/keyboard";
 import { Terminal } from "../src/terminal";
 
+const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
+
 class RecordingTerminal extends Terminal {
   blocks: { lines: string[]; cursorRow?: number; cursorCol?: number }[] = [];
   writes: string[] = [];
@@ -102,7 +104,9 @@ void test("app prompt redraw keeps suggestion row intact", async () => {
 
   const afterInput = terminal.lastBlock();
   assert.ok(
-    afterInput?.lines.some((line) => line.includes("$> hi")),
+    afterInput?.lines.some((line) =>
+      line.replace(ANSI_ESCAPE_REGEX, "").includes("$> hi")
+    ),
     "prompt line shows the typed input"
   );
   assert.strictEqual(afterInput?.lines[1], baselineHistoryLine);

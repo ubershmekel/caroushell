@@ -44,7 +44,7 @@ void test("onboarding saves prompt config even when AI setup is skipped", async 
 
   assert.equal(
     saved,
-    'noAi = true\nprompt = "{hostname} {short-directory} > "\n',
+    'noAi = true\nprompt = "{hostname}:{short-directory} > "\n',
   );
 });
 

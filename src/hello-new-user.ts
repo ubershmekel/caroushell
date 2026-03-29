@@ -8,7 +8,11 @@ const defaultPromptTemplate = "$> ";
 const promptPresets = [
   { key: "1", label: "Minimal", template: defaultPromptTemplate },
   { key: "2", label: "Hostname", template: "{hostname} > " },
-  { key: "3", label: "Hostname + short path", template: "{hostname} {short-directory} > " },
+  {
+    key: "3",
+    label: "Hostname + short path",
+    template: "{hostname}:{short-directory} > ",
+  },
   { key: "4", label: "Path", template: "{directory} > " },
 ] as const;
 
@@ -165,14 +169,20 @@ export async function runHelloNewUserFlow(
 
   const promptConfig = await askPromptConfig(prompter, logFn);
 
-  const wantsAi = (await prompter.ask("Do you want to set up AI auto-complete? (y/n): "))
+  const wantsAi = (
+    await prompter.ask("Do you want to set up AI auto-complete? (y/n): ")
+  )
     .trim()
     .toLowerCase();
 
   if (wantsAi !== "y" && wantsAi !== "yes") {
     prompter.close();
     const config: HelloConfig = { noAi: true, prompt: promptConfig };
-    await fileSystem.writeFile(configPath, serializeToml(config) + "\n", "utf8");
+    await fileSystem.writeFile(
+      configPath,
+      serializeToml(config) + "\n",
+      "utf8",
+    );
     logFn(
       "\nSkipping AI setup. You can set it up later by editing " + configPath,
     );
@@ -258,9 +268,7 @@ export async function runHelloNewUserFlow(
   await fileSystem.writeFile(configPath, serializeToml(config) + "\n", "utf8");
 
   logFn(`\nSaved config to ${configPath}`);
-  logFn(
-    "You can edit this file later if you want to switch providers.\n",
-  );
+  logFn("You can edit this file later if you want to switch providers.\n");
 
   return config;
 }
