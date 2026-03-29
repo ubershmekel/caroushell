@@ -18,14 +18,14 @@ const semverRegex = /^\d+\.\d+\.\d+(-[\da-z.-]+)?$/i;
 const versionArgument = VALID_TYPES.has(normalizedArg)
   ? normalizedArg
   : semverRegex.test(rawArg)
-  ? rawArg
-  : null;
+    ? rawArg
+    : null;
 
 if (!versionArgument) {
   console.error(
     `Invalid release type "${rawArg}". Use one of ${Array.from(
-      VALID_TYPES
-    ).join(", ")} or an explicit semver version.`
+      VALID_TYPES,
+    ).join(", ")} or an explicit semver version.`,
   );
   process.exit(1);
 }
@@ -37,13 +37,23 @@ function ensureCleanGitState() {
     }).trim();
     if (status.length > 0) {
       console.error(
-        "Working tree is dirty. Commit or stash changes before releasing."
+        "Working tree is dirty. Commit or stash changes before releasing.",
       );
       process.exit(1);
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("detected dubious ownership")) {
+      console.error(
+        "Git refused to inspect this repository because it is not marked as a safe.directory.",
+      );
+      console.error(
+        "Run `git config --global --add safe.directory .` and try again.",
+      );
+      process.exit(1);
+    }
     console.error(
-      "Failed to read git status. Is git installed and are you in a git repo?"
+      "Failed to read git status. Is git installed and are you in a git repo?",
     );
     console.error(error);
     process.exit(1);
@@ -71,6 +81,7 @@ runStep(npmCommand, ["run", "lint"]);
 runStep(npmCommand, ["run", "test"]);
 runStep(npmCommand, ["version", versionArgument]);
 runStep(npmCommand, ["run", "build"]);
-runStep(npmCommand, ["publish"]);
 
-console.log("\nRelease complete!");
+console.log(
+  "\nRelease prepared locally. Push the version commit and v-tag to trigger the npm publish workflow.",
+);
