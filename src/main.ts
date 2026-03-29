@@ -6,7 +6,7 @@ import { AISuggester } from "./ai-suggester";
 import { NullSuggester } from "./carousel";
 import { runHelloNewUserFlow } from "./hello-new-user";
 import { ensureLogFolderExists, logLine } from "./logs";
-import { doesConfigExist, getConfigPath, getConfig } from "./config";
+import { doesConfigExist, getConfigPath, getConfig, buildPromptLine0 } from "./config";
 
 function shouldPrintVersion(): boolean {
   return process.argv.includes("--version");
@@ -33,7 +33,7 @@ async function main() {
     config.apiUrl && config.apiKey && config.model
       ? new AISuggester()
       : new NullSuggester();
-  const app = new App({ bottomPanel });
+  const app = new App({ bottomPanel, promptLine0: buildPromptLine0(config) });
   await app.run();
 }
 

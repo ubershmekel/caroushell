@@ -64,6 +64,39 @@ OpenAI, etc.) will work as long as the URL, key, and model are valid. If you
 only provide a Gemini API key in the config, Caroushell will default to the
 Gemini Flash Lite 2.5 endpoint and model.
 
+## Prompt Display
+
+Caroushell can render a custom prompt using a template string in
+`~/.caroushell/config.toml`:
+
+```toml
+prompt = "{hostname} {short-directory} $>"
+```
+
+Available tokens:
+
+- `{hostname}`
+- `{directory}`
+- `{short-directory}`
+
+Examples:
+
+```toml
+prompt = "$> "
+```
+
+```toml
+prompt = "{directory} $> "
+```
+
+```toml
+prompt = "{hostname} {short-directory} $>"
+```
+
+`{short-directory}` keeps the final directory name and shortens parent
+directories to their first letter. For example, `/home/user/projects/my-app`
+becomes `/h/u/p/my-app`.
+
 ## Installation
 
 Install globally (recommended):

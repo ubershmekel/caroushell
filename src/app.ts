@@ -17,6 +17,7 @@ type AppDeps = {
   bottomPanel?: Suggester;
   files?: FileSuggesterLike;
   suggesters?: Suggester[];
+  promptLine0?: () => string;
 };
 
 function collapseLineContinuations(input: string): string {
@@ -52,6 +53,7 @@ export class App {
       topRows: 2,
       bottomRows: this.bottomSuggester instanceof NullSuggester ? 0 : 2,
       terminal: this.terminal,
+      promptLine0: deps.promptLine0,
     });
 
     this.queueUpdateSuggestions = () => {

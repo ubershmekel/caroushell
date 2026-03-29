@@ -100,6 +100,7 @@ export class Carousel {
   private inputBuffer: string = "";
   private cursorIndex = 0;
   private terminal: Terminal;
+  private promptLine0Getter: () => string;
 
   constructor(opts: {
     top: Suggester;
@@ -107,12 +108,14 @@ export class Carousel {
     topRows: number;
     bottomRows: number;
     terminal: Terminal;
+    promptLine0?: () => string;
   }) {
     this.terminal = opts.terminal;
     this.top = opts.top;
     this.bottom = opts.bottom;
     this.topRowCount = opts.topRows;
     this.bottomRowCount = opts.bottomRows;
+    this.promptLine0Getter = opts.promptLine0 ?? (() => "$> ");
   }
 
   async updateSuggestions(input?: string) {
@@ -471,7 +474,7 @@ export class Carousel {
   }
 
   private getPromptPrefix(lineIndex: number): string {
-    return lineIndex === 0 ? "$> " : "> ";
+    return lineIndex === 0 ? this.promptLine0Getter() : "> ";
   }
 
   render() {

@@ -4,12 +4,72 @@ import readline from "readline";
 import { listModels } from "./ai-suggester";
 
 const preferredModels = ["gemini-2.5-flash-lite", "gpt-4o-mini"];
+const defaultPromptTemplate = "$> ";
 
 export type HelloConfig = {
-  apiUrl: string;
-  apiKey: string;
-  model: string;
+  apiUrl?: string;
+  apiKey?: string;
+  model?: string;
+  noAi?: boolean;
+  prompt?: string;
 };
+
+type HelloPrompter = {
+  ask(question: string): Promise<string>;
+  close(): void;
+};
+
+type HelloTerminal = {
+  createPrompter(): HelloPrompter;
+  isInteractive(): boolean;
+};
+
+type HelloFlowDeps = {
+  fsOps?: Pick<typeof fs, "mkdir" | "writeFile">;
+  listModelsFn?: (apiUrl: string, apiKey: string) => Promise<string[]>;
+  logFn?: (...args: any[]) => void;
+  terminal?: HelloTerminal;
+};
+
+function serializeToml(obj: Record<string, unknown>): string {
+  const lines: string[] = [];
+  const sections: Array<[string, Record<string, unknown>]> = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined && typeof value === "object" && value !== null) {
+      sections.push([key, value as Record<string, unknown>]);
+    } else if (value !== undefined) {
+      lines.push(`${key} = ${JSON.stringify(value)}`);
+    }
+  }
+  for (const [section, values] of sections) {
+    lines.push(`\n[${section}]`);
+    for (const [key, value] of Object.entries(values)) {
+      if (value !== undefined) {
+        lines.push(`${key} = ${JSON.stringify(value)}`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+async function askPromptConfig(
+  prompter: HelloPrompter,
+  logFn: (...args: any[]) => void,
+): Promise<string | undefined> {
+  logFn("Customize your shell prompt with plain text and tokens.");
+  logFn("Available tokens:");
+  logFn("  {hostname}");
+  logFn("  {directory}");
+  logFn("  {short-directory}");
+  logFn(`Press Enter to keep the default prompt: ${defaultPromptTemplate}`);
+
+  const answer = await prompter.ask("Prompt template: ");
+  const trimmed = answer.trim();
+  if (!trimmed || trimmed === defaultPromptTemplate.trim()) {
+    return undefined;
+  }
+  return answer;
+}
 
 function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -22,6 +82,26 @@ async function prompt(
   return await new Promise<string>((resolve) => {
     rl.question(question, (answer) => resolve(answer));
   });
+}
+
+function createReadlineTerminal(): HelloTerminal {
+  return {
+    createPrompter() {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      return {
+        ask(question: string) {
+          return prompt(question, rl);
+        },
+        close() {
+          rl.close();
+        },
+      };
+    },
+    isInteractive,
+  };
 }
 
 function findShortestMatches(
@@ -43,8 +123,14 @@ function findShortestMatches(
 
 export async function runHelloNewUserFlow(
   configPath: string,
+  deps: HelloFlowDeps = {},
 ): Promise<HelloConfig | null> {
-  if (!isInteractive()) {
+  const fileSystem = deps.fsOps ?? fs;
+  const listModelsFn = deps.listModelsFn ?? listModels;
+  const logFn = deps.logFn ?? console.log;
+  const terminal = deps.terminal ?? createReadlineTerminal();
+
+  if (!terminal.isInteractive()) {
     throw new Error(
       `Missing config at ${configPath} and no interactive terminal is available.\n` +
         "Create the file manually or run Caroushell from a TTY.",
@@ -52,116 +138,110 @@ export async function runHelloNewUserFlow(
   }
 
   const dir = path.dirname(configPath);
-  await fs.mkdir(dir, { recursive: true });
+  await fileSystem.mkdir(dir, { recursive: true });
 
-  console.log("");
-  console.log("Welcome to Caroushell!");
-  console.log("");
+  logFn("");
+  logFn("Welcome to Caroushell!");
+  logFn("");
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  const prompter = terminal.createPrompter();
 
-  const wantsAi = (
-    await prompt("Do you want to set up AI auto-complete? (y/n): ", rl)
-  )
+  const promptConfig = await askPromptConfig(prompter, logFn);
+
+  const wantsAi = (await prompter.ask("Do you want to set up AI auto-complete? (y/n): "))
     .trim()
     .toLowerCase();
 
   if (wantsAi !== "y" && wantsAi !== "yes") {
-    rl.close();
-    // Writing noAi or any key will skip the new user flow next run
-    await fs.writeFile(configPath, "noAi = true\n", "utf8");
-    console.log(
+    prompter.close();
+    const config: HelloConfig = { noAi: true, prompt: promptConfig };
+    await fileSystem.writeFile(configPath, serializeToml(config) + "\n", "utf8");
+    logFn(
       "\nSkipping AI setup. You can set it up later by editing " + configPath,
     );
-    console.log("");
+    logFn("");
     return null;
   }
 
-  console.log(
+  logFn(
     `\nLet's set up AI suggestions. You'll need an API endpoint URL, a key, and model id. These will be stored at ${configPath}`,
   );
-  console.log("");
-  console.log("Some example endpoints you can paste:");
-  console.log("  - OpenRouter: https://openrouter.ai/api/v1");
-  console.log("  - OpenAI:     https://api.openai.com/v1");
-  console.log(
+  logFn("");
+  logFn("Some example endpoints you can paste:");
+  logFn("  - OpenRouter: https://openrouter.ai/api/v1");
+  logFn("  - OpenAI:     https://api.openai.com/v1");
+  logFn(
     "  - Google:     https://generativelanguage.googleapis.com/v1beta/openai",
   );
-  console.log("");
-  console.log("Press Ctrl+C any time to abort.\n");
+  logFn("");
+  logFn("Press Ctrl+C any time to abort.\n");
 
   let apiUrl = "";
   while (!apiUrl) {
-    const answer = (await prompt("API URL: ", rl)).trim();
+    const answer = (await prompter.ask("API URL: ")).trim();
     if (answer) {
       apiUrl = answer;
     } else {
-      console.log("Please enter a URL (example: https://openrouter.ai/api/v1)");
+      logFn("Please enter a URL (example: https://openrouter.ai/api/v1)");
     }
   }
 
   let apiKey = "";
   while (!apiKey) {
-    const answer = (await prompt("API key: ", rl)).trim();
+    const answer = (await prompter.ask("API key: ")).trim();
     if (answer) {
       apiKey = answer;
     } else {
-      console.log(
+      logFn(
         "Please enter an API key. The value is stored in the local config file.",
       );
     }
   }
 
-  const models = await listModels(apiUrl, apiKey);
+  const models = await listModelsFn(apiUrl, apiKey);
   if (models.length > 0) {
     const preferred = findShortestMatches(models, preferredModels);
 
-    console.log(
+    logFn(
       "Here are a few example model ids from your api service. Choose a fast and cheap model because AI suggestions happen as you type.",
     );
     for (const model of models.slice(0, 5)) {
-      console.log(`  - ${model}`);
+      logFn(`  - ${model}`);
     }
 
     if (preferred.length) {
-      console.log("Recommended models from your provider:");
+      logFn("Recommended models from your provider:");
       for (const model of preferred) {
-        console.log(`  - ${model}`);
+        logFn(`  - ${model}`);
       }
     }
   }
 
   let model = "";
   while (!model) {
-    const answer = (await prompt("Model id: ", rl)).trim();
+    const answer = (await prompter.ask("Model id: ")).trim();
     if (answer) {
       model = answer;
     } else {
-      console.log(
+      logFn(
         "Please enter a model id (example: google/gemini-2.5-flash-lite, mistralai/mistral-small-24b-instruct-2501).",
       );
     }
   }
 
-  rl.close();
+  prompter.close();
 
   const config: HelloConfig = {
     apiUrl,
     apiKey,
     model,
+    prompt: promptConfig,
   };
 
-  const tomlBody = Object.entries(config)
-    .map(([key, value]) => `${key} = ${JSON.stringify(value)}`)
-    .join("\n");
+  await fileSystem.writeFile(configPath, serializeToml(config) + "\n", "utf8");
 
-  await fs.writeFile(configPath, tomlBody + "\n", "utf8");
-
-  console.log(`\nSaved config to ${configPath}`);
-  console.log(
+  logFn(`\nSaved config to ${configPath}`);
+  logFn(
     "You can edit this file later if you want to switch providers.\n",
   );
 
