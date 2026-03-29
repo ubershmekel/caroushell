@@ -37,14 +37,14 @@ void test("onboarding saves prompt config even when AI setup is skipped", async 
 
   await runHelloNewUserFlow(configPath, {
     logFn: () => {},
-    terminal: makeTerminalStub(['{hostname} {short-directory} $> ', "n"]),
+    terminal: makeTerminalStub(["3", "n"]),
   });
 
   const saved = await fs.readFile(configPath, "utf8");
 
   assert.equal(
     saved,
-    'noAi = true\nprompt = "{hostname} {short-directory} $> "\n',
+    'noAi = true\nprompt = "{hostname} {short-directory} > "\n',
   );
 });
 
@@ -62,7 +62,7 @@ void test("onboarding writes prompt template alongside AI settings", async (ctx)
     listModelsFn: async () => [],
     logFn: () => {},
     terminal: makeTerminalStub([
-      "{directory} $> ",
+      "4",
       "y",
       "https://api.openai.com/v1",
       "sk-test",
@@ -74,13 +74,13 @@ void test("onboarding writes prompt template alongside AI settings", async (ctx)
     apiUrl: "https://api.openai.com/v1",
     apiKey: "sk-test",
     model: "gpt-4o-mini",
-    prompt: "{directory} $> ",
+    prompt: "{directory} > ",
   });
 
   const saved = await fs.readFile(configPath, "utf8");
 
   assert.equal(
     saved,
-    'apiUrl = "https://api.openai.com/v1"\napiKey = "sk-test"\nmodel = "gpt-4o-mini"\nprompt = "{directory} $> "\n',
+    'apiUrl = "https://api.openai.com/v1"\napiKey = "sk-test"\nmodel = "gpt-4o-mini"\nprompt = "{directory} > "\n',
   );
 });

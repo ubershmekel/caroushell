@@ -5,6 +5,12 @@ import { listModels } from "./ai-suggester";
 
 const preferredModels = ["gemini-2.5-flash-lite", "gpt-4o-mini"];
 const defaultPromptTemplate = "$> ";
+const promptPresets = [
+  { key: "1", label: "Minimal", template: defaultPromptTemplate },
+  { key: "2", label: "Hostname", template: "{hostname} > " },
+  { key: "3", label: "Hostname + short path", template: "{hostname} {short-directory} > " },
+  { key: "4", label: "Path", template: "{directory} > " },
+] as const;
 
 export type HelloConfig = {
   apiUrl?: string;
@@ -56,19 +62,30 @@ async function askPromptConfig(
   prompter: HelloPrompter,
   logFn: (...args: any[]) => void,
 ): Promise<string | undefined> {
-  logFn("Customize your shell prompt with plain text and tokens.");
-  logFn("Available tokens:");
+  logFn("Choose a shell prompt style.");
+  for (const preset of promptPresets) {
+    logFn(`  ${preset.key}. ${preset.label}: ${preset.template}`);
+  }
+  logFn("");
+  logFn("You can customize this later in the config file with these tokens:");
   logFn("  {hostname}");
   logFn("  {directory}");
   logFn("  {short-directory}");
   logFn(`Press Enter to keep the default prompt: ${defaultPromptTemplate}`);
 
-  const answer = await prompter.ask("Prompt template: ");
-  const trimmed = answer.trim();
-  if (!trimmed || trimmed === defaultPromptTemplate.trim()) {
-    return undefined;
+  while (true) {
+    const answer = (await prompter.ask("Prompt style [1-4]: ")).trim();
+    if (!answer || answer === "1") {
+      return undefined;
+    }
+
+    const preset = promptPresets.find((candidate) => candidate.key === answer);
+    if (preset) {
+      return preset.template;
+    }
+
+    logFn("Choose 1, 2, 3, or 4.");
   }
-  return answer;
 }
 
 function isInteractive(): boolean {
