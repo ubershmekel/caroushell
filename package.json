@@ -19,6 +19,7 @@
     "start": "node dist/main.js",
     "test": "node --import tsx --test tests/*.ts",
     "test:ai-generate": "tsx src/test-generate.ts",
+    "format": "prettier . --write",
     "lint": "eslint . --ext .ts",
     "release": "tsx scripts/release.ts"
   },
@@ -47,6 +48,7 @@
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
     "eslint": "^9.39.1",
+    "prettier": "^3.8.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   },

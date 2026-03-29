@@ -108,10 +108,7 @@ export class Terminal {
       if (needsPosition) {
         const targetRow =
           typeof cursorRow === "number"
-            ? Math.min(
-                Math.max(cursorRow, 0),
-                Math.max(0, this.activeRows - 1)
-              )
+            ? Math.min(Math.max(cursorRow, 0), Math.max(0, this.activeRows - 1))
             : this.cursorRow;
         const targetCol = Math.max(0, cursorCol ?? this.cursorCol);
         this.moveCursorTo(targetRow, targetCol);
@@ -125,7 +122,7 @@ export class Terminal {
     if (this.activeRows === 0) return;
     const safeLine = Math.min(
       Math.max(lineIndex, 0),
-      Math.max(0, this.activeRows - 1)
+      Math.max(0, this.activeRows - 1),
     );
     const safeColumn = Math.max(0, column);
     const rowDelta = safeLine - this.cursorRow;

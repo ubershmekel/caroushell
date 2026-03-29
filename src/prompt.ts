@@ -24,11 +24,7 @@ function shortenPath(p: string): string {
 }
 
 function getCurrentUsername(): string {
-  return (
-    process.env.USERNAME ||
-    process.env.USER ||
-    os.userInfo().username
-  );
+  return process.env.USERNAME || process.env.USER || os.userInfo().username;
 }
 
 export function buildPromptLine0(config: Config): () => string {

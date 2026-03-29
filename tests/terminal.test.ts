@@ -11,7 +11,7 @@ class RecordingWritable extends Writable {
   _write(
     chunk: string | Buffer,
     _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void
+    callback: (error?: Error | null) => void,
   ) {
     this.chunks.push(String(chunk));
     callback();

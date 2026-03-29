@@ -8,7 +8,7 @@ import { HistorySuggester } from "../src/history-suggester";
 
 void test("descriptionForAi lists newest history entries first", async (ctx) => {
   const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "caroushell-history-")
+    path.join(os.tmpdir(), "caroushell-history-"),
   );
   ctx.after(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
@@ -32,7 +32,7 @@ void test("descriptionForAi lists newest history entries first", async (ctx) => 
   assert.strictEqual(lines[0], 'The most recent command is: "echo third"');
   const secondLineOnwardsText = lines.slice(1).join("\n");
   const commandIndexes = commands.map((cmd) =>
-    secondLineOnwardsText.indexOf(cmd)
+    secondLineOnwardsText.indexOf(cmd),
   );
   for (let i = 0; i < commandIndexes.length - 1; i++) {
     // make sure the indexes are shrinking (older commands show up later)

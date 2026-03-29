@@ -48,7 +48,7 @@ class StaticSuggester implements Suggester {
 
   async refreshSuggestions(
     carousel: Carousel,
-    _maxDisplayed: number
+    _maxDisplayed: number,
   ): Promise<void> {
     carousel.render();
   }
@@ -105,9 +105,9 @@ void test("app prompt redraw keeps suggestion row intact", async () => {
   const afterInput = terminal.lastBlock();
   assert.ok(
     afterInput?.lines.some((line) =>
-      line.replace(ANSI_ESCAPE_REGEX, "").includes("$> hi")
+      line.replace(ANSI_ESCAPE_REGEX, "").includes("$> hi"),
     ),
-    "prompt line shows the typed input"
+    "prompt line shows the typed input",
   );
   assert.strictEqual(afterInput?.lines[1], baselineHistoryLine);
   app.end();

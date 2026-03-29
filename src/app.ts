@@ -46,7 +46,11 @@ export class App {
     this.history = deps.topPanel ?? new HistorySuggester();
     this.bottomSuggester = deps.bottomPanel ?? new NullSuggester();
     this.files = deps.files ?? new FileSuggester();
-    this.suggesters = deps.suggesters ?? [this.history, this.bottomSuggester, this.files];
+    this.suggesters = deps.suggesters ?? [
+      this.history,
+      this.bottomSuggester,
+      this.files,
+    ];
     this.carousel = new Carousel({
       top: this.history,
       bottom: this.bottomSuggester,

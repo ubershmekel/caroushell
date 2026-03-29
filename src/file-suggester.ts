@@ -72,7 +72,7 @@ export class FileSuggester implements Suggester {
       const normalizedRest = rest.replace(/^[\\/]/, "");
       return path.resolve(
         os.homedir(),
-        normalizedRest.replace(/\//g, path.sep)
+        normalizedRest.replace(/\//g, path.sep),
       );
     }
     const converted = dirDisplay.replace(/\//g, path.sep);
@@ -85,7 +85,7 @@ export class FileSuggester implements Suggester {
 
   async refreshSuggestions(
     carousel: Carousel,
-    maxDisplayed: number
+    maxDisplayed: number,
   ): Promise<void> {
     const { prefix } = carousel.getWordInfoAtCursor();
     this.latestSuggestions = await this.getMatchingFiles(prefix);
