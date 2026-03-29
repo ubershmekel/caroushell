@@ -5,7 +5,13 @@ import { test } from "node:test";
 import { buildPromptLine0 } from "../src/config";
 
 function normalizeCwd(cwd: string): string {
-  return cwd.replace(/\\/g, "/");
+  const normalized = cwd.replace(/\\/g, "/");
+  const home = os.homedir().replace(/\\/g, "/");
+  if (normalized === home) return "~";
+  if (normalized.startsWith(home + "/")) {
+    return "~" + normalized.slice(home.length);
+  }
+  return normalized;
 }
 
 function shortenPath(p: string): string {
