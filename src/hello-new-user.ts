@@ -73,6 +73,7 @@ async function askPromptConfig(
   logFn("");
   logFn("You can customize this later in the config file with these tokens:");
   logFn("  {hostname}");
+  logFn("  {user}");
   logFn("  {directory}");
   logFn("  {short-directory}");
   logFn(`Press Enter to keep the default prompt: ${defaultPromptTemplate}`);

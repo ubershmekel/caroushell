@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import { test } from "node:test";
 
-import { buildPromptLine0 } from "../src/config";
+import { buildPromptLine0 } from "../src/prompt";
 
 function normalizeCwd(cwd: string): string {
   const normalized = cwd.replace(/\\/g, "/");
@@ -54,4 +54,14 @@ void test("buildPromptLine0 leaves unknown tokens unchanged", () => {
   });
 
   assert.equal(prompt(), `${os.hostname()} {unknown} $> `);
+});
+
+void test("buildPromptLine0 expands the user token", () => {
+  const username =
+    process.env.USERNAME || process.env.USER || os.userInfo().username;
+  const prompt = buildPromptLine0({
+    prompt: "{user} $> ",
+  });
+
+  assert.equal(prompt(), `${username} $> `);
 });

@@ -6,7 +6,8 @@ import { AISuggester } from "./ai-suggester";
 import { NullSuggester } from "./carousel";
 import { runHelloNewUserFlow } from "./hello-new-user";
 import { ensureLogFolderExists, logLine } from "./logs";
-import { doesConfigExist, getConfigPath, getConfig, buildPromptLine0 } from "./config";
+import { doesConfigExist, getConfigPath, getConfig } from "./config";
+import { buildPromptLine0 } from "./prompt";
 
 function shouldPrintVersion(): boolean {
   return process.argv.includes("--version");
