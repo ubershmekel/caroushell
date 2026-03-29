@@ -11,8 +11,6 @@ Then cut a release locally and push the generated commit and tag:
 
 ```bash
 npm run release -- patch
-git push
-git push --tags
 ```
 
 The workflow in `.github/workflows/publish.yml` runs lint, tests, build, and

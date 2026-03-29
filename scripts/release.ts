@@ -81,6 +81,8 @@ runStep(npmCommand, ["run", "lint"]);
 runStep(npmCommand, ["run", "test"]);
 runStep(npmCommand, ["version", versionArgument]);
 runStep(npmCommand, ["run", "build"]);
+runStep("git", ["push"]);
+runStep("git", ["push", "--tags"]);
 
 console.log(
   "\nRelease prepared locally. Push the version commit and v-tag to trigger the npm publish workflow.",
