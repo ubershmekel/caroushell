@@ -18,7 +18,7 @@
     "prepare": "npm run build",
     "start": "node dist/main.js",
     "test": "node --import tsx --test tests/*.ts",
-    "test:generate": "tsx src/test-generate.ts",
+    "test:ai-generate": "tsx src/test-generate.ts",
     "lint": "eslint . --ext .ts",
     "release": "tsx scripts/release.ts"
   },
