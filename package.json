@@ -1,6 +1,6 @@
 {
   "name": "caroushell",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Terminal carousel that suggests commands from history, config, and AI.",
   "type": "commonjs",
   "main": "dist/main.js",
