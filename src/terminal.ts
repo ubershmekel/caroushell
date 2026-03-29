@@ -18,6 +18,10 @@ export class Terminal {
   private cursorRow = 0;
   private cursorCol = 0;
   private writesDisabled = false;
+  private pendingBlock:
+    | { lines: string[]; cursorRow?: number; cursorCol?: number }
+    | null = null;
+  private renderScheduled = false;
 
   disableWrites() {
     this.writesDisabled = true;
@@ -71,6 +75,7 @@ export class Terminal {
 
   write(text: string) {
     if (!this.canWrite()) return;
+    this.flushPendingRender();
     this.out.write(text);
   }
 
@@ -85,6 +90,25 @@ export class Terminal {
   // Render a block of lines by clearing previous block (if any) and writing fresh
   renderBlock(lines: string[], cursorRow?: number, cursorCol?: number) {
     if (!this.canWrite()) return;
+    this.pendingBlock = {
+      lines: [...lines],
+      cursorRow,
+      cursorCol,
+    };
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
+    queueMicrotask(() => this.flushPendingRender());
+  }
+
+  private flushPendingRender() {
+    if (!this.pendingBlock) {
+      this.renderScheduled = false;
+      return;
+    }
+    const pending = this.pendingBlock;
+    this.pendingBlock = null;
+    this.renderScheduled = false;
+    if (!this.canWrite()) return;
     this.withCork(() => {
       this.moveCursorToTopOfBlock();
       if (this.activeRows > 0) {
@@ -92,22 +116,26 @@ export class Terminal {
         readline.clearScreenDown(this.out);
       }
 
-      for (let i = 0; i < lines.length; i++) {
-        this.write(lines[i]);
-        if (i < lines.length - 1) this.write("\n");
+      for (let i = 0; i < pending.lines.length; i++) {
+        this.out.write(pending.lines[i]);
+        if (i < pending.lines.length - 1) this.out.write("\n");
       }
-      this.activeRows = lines.length;
+      this.activeRows = pending.lines.length;
       this.cursorRow = Math.max(0, this.activeRows - 1);
-      const lastLine = lines[this.cursorRow] || "";
+      const lastLine = pending.lines[this.cursorRow] || "";
       this.cursorCol = lastLine.length;
       const needsPosition =
-        typeof cursorRow === "number" || typeof cursorCol === "number";
+        typeof pending.cursorRow === "number" ||
+        typeof pending.cursorCol === "number";
       if (needsPosition) {
         const targetRow =
-          typeof cursorRow === "number"
-            ? Math.min(Math.max(cursorRow, 0), Math.max(0, this.activeRows - 1))
+          typeof pending.cursorRow === "number"
+            ? Math.min(
+                Math.max(pending.cursorRow, 0),
+                Math.max(0, this.activeRows - 1)
+              )
             : this.cursorRow;
-        const targetCol = Math.max(0, cursorCol ?? this.cursorCol);
+        const targetCol = Math.max(0, pending.cursorCol ?? this.cursorCol);
         this.moveCursorTo(targetRow, targetCol);
       }
     });
@@ -133,6 +161,8 @@ export class Terminal {
   // When we have printed arbitrary output that is not managed by renderBlock,
   // reset internal line tracking so the next render starts fresh.
   resetBlockTracking() {
+    this.pendingBlock = null;
+    this.renderScheduled = false;
     this.activeRows = 0;
     this.cursorRow = 0;
     this.cursorCol = 0;
