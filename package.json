@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "tsx src/main.ts",
     "build": "tsc -p tsconfig.release.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare": "npm run build",
     "start": "node dist/main.js",
     "test": "node --import tsx --test tests/*.ts",
