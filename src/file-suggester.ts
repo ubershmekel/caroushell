@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
 import type { Carousel, Suggester } from "./carousel";
+import { expandHomePath } from "./path-utils";
 
 const maxFileAiLines = 10;
 
@@ -67,13 +67,9 @@ export class FileSuggester implements Suggester {
     if (!dirDisplay) {
       return process.cwd();
     }
-    if (dirDisplay.startsWith("~")) {
-      const rest = dirDisplay.slice(1);
-      const normalizedRest = rest.replace(/^[\\/]/, "");
-      return path.resolve(
-        os.homedir(),
-        normalizedRest.replace(/\//g, path.sep),
-      );
+    const expanded = expandHomePath(dirDisplay);
+    if (expanded !== dirDisplay) {
+      return expanded;
     }
     const converted = dirDisplay.replace(/\//g, path.sep);
     return path.resolve(process.cwd(), converted);

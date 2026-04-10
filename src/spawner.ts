@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { exit } from "process";
 import { logLine } from "./logs";
+import { expandHomePath } from "./path-utils";
 
 const isWin = process.platform === "win32";
 const shellBinary = isWin ? "cmd.exe" : "/bin/bash";
@@ -24,7 +25,7 @@ const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
       process.stdout.write(process.cwd() + "\n");
       return true;
     }
-    const dest = expandVars(args[1]);
+    const dest = expandPathToken(args[1]);
     try {
       process.chdir(dest);
       updateDriveCwd();
@@ -54,7 +55,7 @@ const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
       writeDirStack();
       return true;
     }
-    const dest = expandVars(args[1]);
+    const dest = expandPathToken(args[1]);
     try {
       process.chdir(dest);
       updateDriveCwd();
@@ -112,6 +113,89 @@ function expandVars(input: string): string {
   return out;
 }
 
+function expandPathToken(input: string): string {
+  return expandHomePath(expandVars(input));
+}
+
+type CommandSegment =
+  | { type: "whitespace"; text: string }
+  | { type: "token"; value: string; quoted: boolean };
+
+function parseCommandSegments(command: string): CommandSegment[] {
+  const segments: CommandSegment[] = [];
+  let index = 0;
+
+  while (index < command.length) {
+    if (/\s/.test(command[index] ?? "")) {
+      const start = index;
+      while (index < command.length && /\s/.test(command[index] ?? "")) {
+        index += 1;
+      }
+      segments.push({
+        type: "whitespace",
+        text: command.slice(start, index),
+      });
+      continue;
+    }
+
+    if (command[index] === '"') {
+      index += 1;
+      let value = "";
+      while (index < command.length && command[index] !== '"') {
+        value += command[index];
+        index += 1;
+      }
+      if (command[index] === '"') {
+        index += 1;
+      }
+      segments.push({ type: "token", value, quoted: true });
+      continue;
+    }
+
+    const start = index;
+    while (index < command.length && !/\s/.test(command[index] ?? "")) {
+      index += 1;
+    }
+    segments.push({
+      type: "token",
+      value: command.slice(start, index),
+      quoted: false,
+    });
+  }
+
+  return segments;
+}
+
+function tokenizeCommand(command: string): { value: string; quoted: boolean }[] {
+  return parseCommandSegments(command).flatMap((segment) =>
+    segment.type === "token"
+      ? [{ value: segment.value, quoted: segment.quoted }]
+      : [],
+  );
+}
+
+function formatCommandToken(value: string, quoted: boolean): string {
+  if (quoted || /\s/.test(value)) {
+    return `"${value.replace(/"/g, '\\"')}"`;
+  }
+  return value;
+}
+
+function expandCommandForShell(command: string): string {
+  if (!isWin) {
+    return command;
+  }
+
+  return parseCommandSegments(command)
+    .map((segment) => {
+      if (segment.type === "whitespace") {
+        return segment.text;
+      }
+      return formatCommandToken(expandHomePath(segment.value), segment.quoted);
+    })
+    .join("");
+}
+
 export async function runUserCommand(command: string): Promise<boolean> {
   logLine(`Running command: ${command}`);
   const trimmed = command.trim();
@@ -131,14 +215,16 @@ export async function runUserCommand(command: string): Promise<boolean> {
     }
   }
 
-  const args = command.split(/\s+/);
+  const args = tokenizeCommand(trimmed).map((token) => token.value);
   if (typeof args[0] === "string" && builtInCommands[args[0]]) {
-    return await builtInCommands[args[0]](args as string[]);
+    return await builtInCommands[args[0]](args);
   }
+
+  const shellCommand = expandCommandForShell(command);
 
   // "windowsVerbatimArguments: true" to prevent the bug of `echo "asdf"` outputting
   // \"asdf\" instead of "asdf". I wonder why node defaults to quoting args on windows.
-  const proc = spawn(shellBinary, [...shellArgs, command], {
+  const proc = spawn(shellBinary, [...shellArgs, shellCommand], {
     stdio: "inherit",
     windowsVerbatimArguments: true,
   });

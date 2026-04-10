@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { accessSync } from "node:fs";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -48,6 +48,19 @@ void test("cd changes directories and reports cwd", async () => {
     assert.equal(process.cwd(), child);
     const { out } = await captureStdout(() => runUserCommand("cd"));
     assert.equal(out, process.cwd() + "\n");
+  } finally {
+    process.chdir(original);
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+void test("cd ~ changes to the home directory", async () => {
+  const original = process.cwd();
+  const base = await mkdtemp(path.join(tmpdir(), tmpSuffix));
+  try {
+    process.chdir(base);
+    await runUserCommand("cd ~");
+    assert.equal(process.cwd(), homedir());
   } finally {
     process.chdir(original);
     await rm(base, { recursive: true, force: true });
@@ -142,4 +155,22 @@ void test("runUserCommand temporarily registers SIGINT protection", async () => 
 
   assert.equal(sigintAdded, 1);
   assert.equal(sigintRemoved, 1);
+});
+
+void test("external commands receive expanded home paths", async () => {
+  const target = path.join(
+    homedir(),
+    `caroushell-tilde-test-${process.pid}-${Date.now()}.txt`,
+  );
+  const arg = `~/${path.basename(target)}`;
+
+  try {
+    await rm(target, { force: true });
+    await runUserCommand(
+      `node -e "require('node:fs').writeFileSync(process.argv[1], 'ok')" ${arg}`,
+    );
+    accessSync(target);
+  } finally {
+    await rm(target, { force: true });
+  }
 });
