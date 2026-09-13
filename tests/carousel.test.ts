@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, TestContext } from "node:test";
 
 import { Carousel, getDisplayWidth, NullSuggester } from "../src/carousel";
-import { Terminal } from "../src/terminal";
+import { Terminal, colors } from "../src/terminal";
 
 function narrowCarousel(t: TestContext, width = 10, panels = false) {
   const previous = Object.getOwnPropertyDescriptor(process.stdout, "columns");
@@ -34,7 +34,7 @@ function narrowCarousel(t: TestContext, width = 10, panels = false) {
     topRows: panels ? 1 : 0,
     bottomRows: panels ? 1 : 0,
   });
-  return { carousel, lastBlock: () => block };
+  return { carousel, terminal, lastBlock: () => block };
 }
 
 void test("typing wraps all input and keeps the cursor visible between suggestion panels", (t) => {
@@ -168,7 +168,7 @@ void test("multiline history previews stay on one row and selected entries track
   carousel.setTopSuggester(history);
   carousel.render();
   assert.equal(lastBlock().lines.length, 3);
-  assert.equal(lastBlock().lines[0], "H>\u2193 dir e:");
+  assert.equal(lastBlock().lines[0], "H>dir e: … +4 lines");
   carousel.up();
   for (let position = 0; position <= suggestion.length; position++) {
     carousel.render();
@@ -188,4 +188,58 @@ void test("multiline history previews stay on one row and selected entries track
   carousel.resetIndex();
   carousel.render();
   assert.equal(lastBlock().lines.length, 3);
+});
+
+for (const panel of ["top", "bottom"] as const) {
+  void test(`${panel} previews reserve space for colored character counts`, (t) => {
+    const { carousel, terminal, lastBlock } = narrowCarousel(t, 24, true);
+    const suggester = carousel.getSuggesters()[panel === "top" ? 0 : 1];
+    suggester.prefix = "H>";
+    const suggestion = "abcdefghijklmnopqrstuvwxyz";
+    t.mock.method(suggester, "latest", () => [suggestion]);
+    carousel.render();
+    const row = panel === "top" ? 0 : 2;
+    assert.equal(lastBlock().lines[row], "H>abcdefghij … +16 chars");
+    // Inspect the actual terminal output as well as the uncolored layout.
+    const render = terminal.renderBlock as typeof terminal.renderBlock & {
+      mock: { calls: { arguments: [string[], number, number] }[] };
+    };
+    assert.ok(
+      render.mock.calls[0].arguments[0][row].includes(
+        colors.yellow + "… +16 chars",
+      ),
+    );
+    assert.equal(lastBlock().lines.length, 3);
+    if (panel === "top") carousel.up();
+    else carousel.down();
+    carousel.render();
+    assert.equal(carousel.getCurrentRow(), suggestion);
+    assert.equal(lastBlock().lines.slice(1, -1).join(""), "H>> " + suggestion);
+    carousel.resetIndex();
+    carousel.render();
+    assert.equal(lastBlock().lines[row], "H>abcdefghij … +16 chars");
+  });
+}
+
+void test("previews count both overflow dimensions and preserve Unicode graphemes", (t) => {
+  const { carousel, lastBlock } = narrowCarousel(t, 36, true);
+  const history = carousel.getSuggesters()[0];
+  history.prefix = "H>";
+  t.mock.method(history, "latest", () => [
+    "界e\u0301🙂".repeat(10) + "\r\nnext\rlast",
+  ]);
+  carousel.render();
+  const preview = lastBlock().lines[0];
+  assert.equal(preview, "H>界e\u0301🙂界e\u0301🙂界 … +2 lines, +23 chars");
+  assert.ok(getDisplayWidth(preview) <= 36);
+  assert.equal(lastBlock().lines.length, 3);
+});
+
+void test("tiny previews keep an ellipsis within the terminal width", (t) => {
+  const { carousel, lastBlock } = narrowCarousel(t, 2, true);
+  const history = carousel.getSuggesters()[0];
+  history.prefix = "History>";
+  t.mock.method(history, "latest", () => ["long\ncommand"]);
+  carousel.render();
+  assert.equal(lastBlock().lines[0], "H…");
 });

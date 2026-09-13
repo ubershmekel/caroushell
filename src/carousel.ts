@@ -255,13 +255,78 @@ export class Carousel {
     return `${color}${prefix}${rowStr}${reset}`;
   }
 
+  private getSuggestionPreview(rowIndex: number, width: number): string {
+    const rowStr = this.getRow(rowIndex);
+    const prefix = this.getSuggestionPrefix(rowIndex, rowStr).replace(
+      ANSI_ESCAPE_REGEX,
+      "",
+    );
+    const sourceLines = rowStr
+      .replace(ANSI_ESCAPE_REGEX, "")
+      .split(/\r\n|\r|\n/);
+    const firstLine = sourceLines[0];
+    const segments = GRAPHEME_SEGMENTER
+      ? Array.from(
+          GRAPHEME_SEGMENTER.segment(firstLine),
+          ({ segment }) => segment,
+        )
+      : Array.from(firstLine);
+    const hiddenLines = sourceLines.length - 1;
+    const widths = segments.map(getDisplayWidth);
+    let visible = segments.length;
+    let textWidth = widths.reduce((sum, cells) => sum + cells, 0);
+    const prefixWidth = getDisplayWidth(prefix);
+    const indicator = () => {
+      const counts: string[] = [];
+      if (hiddenLines) {
+        counts.push(`+${hiddenLines} ${hiddenLines === 1 ? "line" : "lines"}`);
+      }
+      const hiddenChars = segments.length - visible;
+      if (hiddenChars) {
+        counts.push(`+${hiddenChars} ${hiddenChars === 1 ? "char" : "chars"}`);
+      }
+      return counts.length ? `… ${counts.join(", ")}` : "";
+    };
+    // Recalculate the count as text is removed: the marker itself needs space,
+    // and its width can grow when the hidden-character count gains a digit.
+    let suffix = indicator();
+    while (
+      visible > 0 &&
+      prefixWidth + textWidth + (suffix ? 1 + getDisplayWidth(suffix) : 0) >
+        width
+    ) {
+      textWidth -= widths[--visible];
+      suffix = indicator();
+    }
+    if (suffix && prefixWidth + 1 + getDisplayWidth(suffix) > width) {
+      // Very narrow terminals still get a visible overflow hint.
+      suffix = "…";
+    }
+    const content = prefix + segments.slice(0, visible).join("");
+    const budget = width - (suffix ? getDisplayWidth(suffix) : 0);
+    let preview = "";
+    // Clip even an unusually long suggester prefix, without splitting graphemes.
+    const parts = GRAPHEME_SEGMENTER
+      ? Array.from(
+          GRAPHEME_SEGMENTER.segment(content),
+          ({ segment }) => segment,
+        )
+      : Array.from(content);
+    let used = 0;
+    for (const part of parts) {
+      const cells = getDisplayWidth(part);
+      if (used + cells > budget) break;
+      preview += part;
+      used += cells;
+    }
+    const gap = suffix && used < budget ? " " : "";
+    return `${colors.dim}${preview}${gap}${colors.yellow}${suffix}${colors.reset}`;
+  }
+
   private getSuggestionPrefix(rowIndex: number, rowStr: string): string {
     let prefix = this.getPrefixByIndex(rowIndex);
     if (this.index === rowIndex && rowIndex !== 0) {
       prefix = `${prefix}> `;
-    } else if (/[\r\n]/.test(rowStr)) {
-      // Put the expansion hint before the text so clipping cannot hide it.
-      prefix = `${prefix}\u2193 `;
     }
     if (rowIndex !== 0 && !rowStr) {
       // The edge of the top or bottom panel
@@ -611,10 +676,7 @@ export class Carousel {
           lines.push(...wrapped.lines);
         } else {
           // Keep unselected suggestions as compact, single-row previews.
-          lines.push(
-            wrapDisplayLine(this.getFormattedSuggestionRow(rowIndex), width)
-              .lines[0] + colors.reset,
-          );
+          lines.push(this.getSuggestionPreview(rowIndex, width));
         }
       }
     }
