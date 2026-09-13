@@ -4,6 +4,10 @@ import { Terminal, colors } from "./terminal";
 const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
 const COMBINING_MARK_REGEX = /^\p{Mark}+$/u;
 const EMOJI_REGEX = /\p{Extended_Pictographic}/u;
+// A grapheme is one user-visible character, potentially made of several Unicode
+// code points (e.g. "e" + a combining accent, or a joined family emoji).
+// Segmenting prevents wrapping between those pieces. String.length counts UTF-16
+// code units instead, so it cannot tell us where visible characters end.
 const GRAPHEME_SEGMENTER =
   typeof Intl !== "undefined" && "Segmenter" in Intl
     ? new Intl.Segmenter("en", { granularity: "grapheme" })
@@ -30,6 +34,8 @@ function isFullWidthCodePoint(codePoint: number): boolean {
 }
 
 export function getDisplayWidth(text: string): number {
+  // Colors occupy no terminal cells. Most graphemes occupy one cell; wide
+  // characters and emoji typically occupy two (exact rendering is terminal-specific).
   const stripped = text.replace(ANSI_ESCAPE_REGEX, "");
   let width = 0;
   if (GRAPHEME_SEGMENTER) {
@@ -56,6 +62,54 @@ export function getDisplayWidth(text: string): number {
     width += isFullWidthCodePoint(codePoint) ? 2 : 1;
   }
   return width;
+}
+
+// Split by terminal cells, keeping color sequences and graphemes intact.
+// `cursor` is a display-cell offset in the unwrapped line, not a string index.
+function wrapDisplayLine(text: string, width: number, cursor?: number) {
+  const lines = [""];
+  let column = 0;
+  let offset = 0;
+  let cursorRow = 0;
+  let cursorCol = 0;
+  // The capturing group preserves color escapes as separate parts. Copy them
+  // without counting their bytes; their style remains active across wrapped rows.
+  for (const part of text.split(/(\x1b\[[0-9;]*m)/g)) {
+    if (part.startsWith("\x1b[")) {
+      lines[lines.length - 1] += part;
+      continue;
+    }
+    const segments = GRAPHEME_SEGMENTER
+      ? Array.from(GRAPHEME_SEGMENTER.segment(part), ({ segment }) => segment)
+      : Array.from(part);
+    for (const segment of segments) {
+      const cells = getDisplayWidth(segment);
+      // Move a two-cell character to the next row if only one cell remains.
+      if (cells > 0 && column + cells > width) {
+        lines.push("");
+        column = 0;
+      }
+      if (offset === cursor) {
+        // Resolve the cursor after wrapping so it stays with the next character.
+        cursorRow = lines.length - 1;
+        cursorCol = column;
+      }
+      lines[lines.length - 1] += segment;
+      column += cells;
+      offset += cells;
+    }
+  }
+  if (offset === cursor) {
+    // A cursor after a full row needs a real continuation row; terminals
+    // otherwise leave it at the right margin with autowrap pending.
+    if (column >= width) {
+      lines.push("");
+      column = 0;
+    }
+    cursorRow = lines.length - 1;
+    cursorCol = column;
+  }
+  return { lines, cursorRow, cursorCol };
 }
 
 export interface Suggester {
@@ -493,7 +547,7 @@ export class Carousel {
 
   render() {
     logLine("Rendering carousel");
-    const width = process.stdout.columns || 80;
+    const width = Math.max(2, process.stdout.columns || 80);
     const lines: string[] = [];
     const rowCount = this.topRowCount + this.bottomRowCount + 1;
     const start = this.index + this.topRowCount;
@@ -507,13 +561,17 @@ export class Carousel {
     for (let rowIndex = start; rowIndex > end; rowIndex--) {
       if (rowIndex === 0) {
         for (let i = 0; i < promptLines.length; i++) {
-          if (this.index === 0 && i === lineInfo.lineIndex) {
-            cursorRow = lines.length;
-            cursorCol = this.getPromptCursorColumn();
-          }
-          lines.push(
+          const containsCursor = promptSelected && i === lineInfo.lineIndex;
+          const wrapped = wrapDisplayLine(
             this.getFormattedPromptRow(i, promptLines[i], promptSelected),
+            width,
+            containsCursor ? this.getPromptCursorColumn() : undefined,
           );
+          if (containsCursor) {
+            cursorRow = lines.length + wrapped.cursorRow;
+            cursorCol = wrapped.cursorCol;
+          }
+          lines.push(...wrapped.lines);
         }
       } else {
         if (this.index === rowIndex) {
@@ -524,16 +582,18 @@ export class Carousel {
             0,
             Math.min(this.cursorIndex, rowStr.length),
           );
-          cursorCol = getDisplayWidth(prefix) + getDisplayWidth(cursorText);
+          cursorCol = Math.min(
+            width - 1,
+            getDisplayWidth(prefix) + getDisplayWidth(cursorText),
+          );
         }
-        lines.push(this.getFormattedSuggestionRow(rowIndex));
+        lines.push(
+          wrapDisplayLine(this.getFormattedSuggestionRow(rowIndex), width)
+            .lines[0] + colors.reset,
+        );
       }
     }
-    this.terminal.renderBlock(
-      lines.map((line) => line.slice(0, width - 2)),
-      cursorRow,
-      cursorCol,
-    );
+    this.terminal.renderBlock(lines, cursorRow, cursorCol);
   }
 
   setTopSuggester(suggester: Suggester) {

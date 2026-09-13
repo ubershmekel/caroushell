@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { accessSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,12 @@ import { test } from "node:test";
 import { runUserCommand } from "../src/spawner";
 
 const tmpSuffix = "caroushell-test";
+
+async function makeTempDirectory() {
+  // On macOS, the temp directory can be under /var, a symlink to /private/var.
+  // process.cwd() resolves symlinks, so compare it to the resolved fixture path.
+  return realpath(await mkdtemp(path.join(tmpdir(), tmpSuffix)));
+}
 
 async function captureStdout<T>(fn: () => Promise<T>) {
   const original = process.stdout.write;
@@ -39,7 +45,7 @@ function findAlternateDrive(): string | null {
 
 void test("cd changes directories and reports cwd", async () => {
   const original = process.cwd();
-  const base = await mkdtemp(path.join(tmpdir(), tmpSuffix));
+  const base = await makeTempDirectory();
   const child = path.join(base, "child");
   await mkdir(child);
   try {
@@ -56,7 +62,7 @@ void test("cd changes directories and reports cwd", async () => {
 
 void test("cd ~ changes to the home directory", async () => {
   const original = process.cwd();
-  const base = await mkdtemp(path.join(tmpdir(), tmpSuffix));
+  const base = await makeTempDirectory();
   try {
     process.chdir(base);
     await runUserCommand("cd ~");
@@ -69,7 +75,7 @@ void test("cd ~ changes to the home directory", async () => {
 
 void test("pushd swaps directories using the stack", async () => {
   const original = process.cwd();
-  const base = await mkdtemp(path.join(tmpdir(), tmpSuffix));
+  const base = await makeTempDirectory();
   const child = path.join(base, "child");
   await mkdir(child);
   try {
@@ -88,7 +94,7 @@ void test("pushd swaps directories using the stack", async () => {
 
 void test("popd moves to next directory in stack", async () => {
   const original = process.cwd();
-  const base = await mkdtemp(path.join(tmpdir(), tmpSuffix));
+  const base = await makeTempDirectory();
   const child = path.join(base, "child");
   await mkdir(child);
   try {

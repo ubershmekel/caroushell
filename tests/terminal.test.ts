@@ -37,6 +37,23 @@ void test("renderBlock hides the cursor while repainting", async () => {
   assert.ok(promptIndex < showIndex);
 });
 
+void test("wrapped rows start at column zero and are cleared when input shrinks", () => {
+  const out = new RecordingWritable();
+  const terminal = new Terminal();
+  (terminal as any).out = out;
+
+  terminal.renderBlock(["$> abcdefg", "hijklmnopq", "rs"], 2, 2);
+  assert.ok(out.chunks.join("").includes("$> abcdefg\r\nhijklmnopq\r\nrs"));
+
+  out.chunks = [];
+  terminal.renderBlock(["$> a"], 0, 4);
+  const output = out.chunks.join("");
+  assert.ok(output.includes("\x1b[2A"));
+  assert.ok(output.indexOf("\x1b[2A") < output.indexOf("$> a"));
+  assert.ok(output.includes("\x1b[0J"));
+  assert.ok(output.includes("\x1b[5G"));
+});
+
 void test("prompt separators render in a different color than prompt text", () => {
   const out = new RecordingWritable();
   const terminal = new Terminal();

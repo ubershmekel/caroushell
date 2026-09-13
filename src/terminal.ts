@@ -97,7 +97,11 @@ export class Terminal {
 
       for (let i = 0; i < lines.length; i++) {
         this.out.write(lines[i]);
-        if (i < lines.length - 1) this.out.write("\n");
+        // Terminal controls, not file line endings: CR returns to column zero,
+        // then LF moves down one row. This works on Windows and Unix, including
+        // raw mode where LF may not automatically return to column zero.
+        // CR also cancels pending autowrap when the preceding row is full.
+        if (i < lines.length - 1) this.out.write("\r\n");
       }
       this.activeRows = lines.length;
       this.cursorRow = Math.max(0, this.activeRows - 1);
