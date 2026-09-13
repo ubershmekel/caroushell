@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { stripVTControlCharacters } from "node:util";
 
 type KeySpec = {
   sequence: string;
@@ -48,6 +49,8 @@ const KEY_DEFINITIONS: Record<string, KeySpec[]> = {
   // Focus in/out (sent by some terminals on focus change - swallow these)
   "focus-in": [{ sequence: "\u001b[I" }],
   "focus-out": [{ sequence: "\u001b[O" }],
+  "paste-start": [{ sequence: "\u001b[200~" }],
+  "paste-end": [{ sequence: "\u001b[201~" }],
 };
 
 export type KeyName = keyof typeof KEY_DEFINITIONS | "char";
@@ -95,6 +98,8 @@ for (const seq of Object.keys(KEYMAP)) {
 export class Keyboard extends EventEmitter {
   private capturing = false;
   private buffer = "";
+  private pasting = false;
+  private sequenceTimer?: ReturnType<typeof setTimeout>;
   private stdin: NodeJS.ReadStream;
   private onData = (data: string) => this.handleData(data);
 
@@ -113,25 +118,60 @@ export class Keyboard extends EventEmitter {
   }
 
   disableCapture() {
+    this.clearSequenceTimer();
     if (!this.capturing) return;
     this.stdin.off("data", this.onData);
     if (this.stdin.isTTY) this.stdin.setRawMode(false);
     this.stdin.pause();
     this.buffer = "";
+    this.pasting = false;
     this.capturing = false;
   }
 
   private handleData(data: string) {
+    this.clearSequenceTimer();
     this.buffer += data;
     this.processBuffer();
   }
 
-  private processBuffer() {
+  private clearSequenceTimer() {
+    if (this.sequenceTimer !== undefined) {
+      clearTimeout(this.sequenceTimer);
+      this.sequenceTimer = undefined;
+    }
+  }
+
+  private processBuffer(waitForSequence = true) {
     // Try to consume as many full key sequences as possible
     while (this.buffer.length > 0) {
-      const evt = this.matchSequence(this.buffer);
-      if (evt === "need-more") return; // wait for more bytes
+      if (this.pasting) {
+        const endMarker = keySequence("paste-end");
+        const end = this.buffer.indexOf(endMarker);
+        if (end < 0) return;
+        // Insert the whole paste as text: embedded newlines must not run commands.
+        const text = stripVTControlCharacters(this.buffer.slice(0, end))
+          .replace(/\r\n?/g, "\n")
+          .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+        this.buffer = this.buffer.slice(end + endMarker.length);
+        this.pasting = false;
+        if (text) this.emit("key", { name: "char", sequence: text });
+        continue;
+      }
+      const evt = this.matchSequence(this.buffer, waitForSequence);
+      if (evt === "need-more") {
+        this.clearSequenceTimer();
+        this.sequenceTimer = setTimeout(() => {
+          this.sequenceTimer = undefined;
+          this.processBuffer(false);
+        }, 40);
+        return;
+      }
       if (evt) {
+        if (evt.name === "paste-start" || evt.name === "paste-end") {
+          this.buffer = this.buffer.slice(evt.sequence.length);
+          this.pasting = evt.name === "paste-start";
+          continue;
+        }
         // Swallow focus in/out sequences so they don't show up as visible chars
         if (evt.name === "focus-in" || evt.name === "focus-out") {
           this.buffer = this.buffer.slice(evt.sequence.length);
@@ -154,13 +194,20 @@ export class Keyboard extends EventEmitter {
     }
   }
 
-  private matchSequence(buf: string): KeyEvent | "need-more" | null {
+  private matchSequence(
+    buf: string,
+    waitForSequence: boolean,
+  ): KeyEvent | "need-more" | null {
+    // Escape can start a longer key, but only wait until the sequence timeout.
+    if (waitForSequence && buf === "\u001b") return "need-more";
     // Fast path: exact match
     const exact = KEYMAP[buf];
     if (exact) return { ...exact, sequence: buf };
 
+    // Wait for split escape sequences before matching their shorter Escape key.
+    if (waitForSequence && KEY_PREFIXES.has(buf)) return "need-more";
+
     // Try the longest possible mapped sequence that matches the buffer prefix
-    // Limit search by checking prefixes set.
     let maxLen = 0;
     let matched: KeyEvent | null = null;
     for (const seq of Object.keys(KEYMAP)) {
@@ -172,9 +219,6 @@ export class Keyboard extends EventEmitter {
       }
     }
     if (matched) return matched;
-
-    // If current buffer is a prefix to any known sequence, wait for more
-    if (KEY_PREFIXES.has(buf)) return "need-more";
 
     // No sequence match
     return null;

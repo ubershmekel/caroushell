@@ -18,6 +18,18 @@ class RecordingWritable extends Writable {
   }
 }
 
+void test("reset restores prompt modes and release disables bracketed paste", () => {
+  const out = new RecordingWritable();
+  const terminal = new Terminal();
+  (terminal as any).out = out;
+  terminal.reset();
+  assert.ok(out.chunks.join("").includes("\x1b[?1l"));
+  assert.ok(out.chunks.join("").includes("\x1b[?2004h"));
+  out.chunks = [];
+  terminal.release();
+  assert.equal(out.chunks.join(""), "\x1b[?2004l");
+});
+
 void test("renderBlock hides the cursor while repainting", async () => {
   const out = new RecordingWritable();
   const terminal = new Terminal();

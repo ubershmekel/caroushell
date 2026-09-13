@@ -72,6 +72,109 @@ class NullFileSuggester extends StaticSuggester {
   }
 }
 
+void test("prompt owns paste mode across command handoff, failure, and shutdown", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+  const history = new StaticSuggester("H>", []);
+  const files = new NullFileSuggester();
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    files,
+    suggesters: [],
+  });
+  const exitListeners = process.listenerCount("exit");
+  const modes = () =>
+    terminal.writes.filter((text) => /\x1b\[\?2004[hl]/.test(text));
+  try {
+    await app.run();
+    assert.deepEqual(modes(), ["\x1b[?2004h"]);
+    assert.equal(process.listenerCount("exit"), exitListeners + 1);
+    (app as any).preBroadcastCommand = async () => {
+      assert.equal(modes().slice(-1)[0], "\x1b[?2004l");
+      assert.equal(input.listenerCount("data"), 0);
+    };
+    await (app as any).runCommand("echo paste-mode-test");
+    assert.deepEqual(modes().slice(-2), ["\x1b[?2004l", "\x1b[?2004h"]);
+    (app as any).preBroadcastCommand = async () => {
+      throw new Error("hook failed");
+    };
+    await assert.rejects((app as any).runCommand("unused"), /hook failed/);
+    assert.deepEqual(modes().slice(-2), ["\x1b[?2004l", "\x1b[?2004h"]);
+    assert.equal(input.listenerCount("data"), 1);
+  } finally {
+    app.end();
+  }
+  assert.equal(modes().slice(-1)[0], "\x1b[?2004l");
+  assert.equal(input.listenerCount("data"), 0);
+  assert.equal(process.listenerCount("exit"), exitListeners);
+});
+
+void test("multiline bracketed paste waits for a typed Enter", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+  const history = new StaticSuggester("H>", []);
+  const files = new NullFileSuggester();
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    files,
+    suggesters: [],
+  });
+  const commands: string[] = [];
+  (app as any).runCommand = async (cmd: string) => {
+    commands.push(cmd);
+  };
+  try {
+    await app.run();
+    input.emit("data", "\x1b[200~echo one\r\necho two\r\n\x1b[201~");
+    assert.equal(app.carousel.getInputBuffer(), "echo one\necho two\n");
+    assert.deepEqual(commands, []);
+    input.emit("data", "\r");
+    await delay(0);
+    assert.deepEqual(commands, ["echo one\necho two"]);
+  } finally {
+    app.end();
+  }
+});
+
+void test("command display tracks multiline input as separate terminal rows", async () => {
+  const terminal = new RecordingTerminal();
+  const input = new PassThrough();
+  const keyboard = new Keyboard(input as unknown as NodeJS.ReadStream);
+  const history = new StaticSuggester("H>", []);
+  const files = new NullFileSuggester();
+  const app = new App({
+    terminal,
+    keyboard,
+    topPanel: history,
+    files,
+    suggesters: [],
+  });
+  // Stop before executing: this test inspects the command echo's physical rows.
+  (app as any).preBroadcastCommand = async () => {
+    throw new Error("display checked");
+  };
+  try {
+    await assert.rejects(
+      (app as any).runCommand("dir e:\n\necho 1\ndir c:\necho 2"),
+      /display checked/,
+    );
+    assert.deepEqual(
+      terminal
+        .lastBlock()
+        ?.lines.map((line) => line.replace(ANSI_ESCAPE_REGEX, "")),
+      ["$ dir e:", "", "echo 1", "dir c:", "echo 2"],
+    );
+  } finally {
+    app.end();
+  }
+});
+
 void test("app prompt redraw keeps suggestion row intact", async () => {
   const terminal = new RecordingTerminal();
   const input = new PassThrough();

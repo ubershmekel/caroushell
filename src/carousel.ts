@@ -66,7 +66,7 @@ export function getDisplayWidth(text: string): number {
 
 // Split by terminal cells, keeping color sequences and graphemes intact.
 // `cursor` is a display-cell offset in the unwrapped line, not a string index.
-function wrapDisplayLine(text: string, width: number, cursor?: number) {
+export function wrapDisplayLine(text: string, width: number, cursor?: number) {
   const lines = [""];
   let column = 0;
   let offset = 0;
@@ -84,6 +84,20 @@ function wrapDisplayLine(text: string, width: number, cursor?: number) {
       : Array.from(part);
     for (const segment of segments) {
       const cells = getDisplayWidth(segment);
+      if (segment === "\n" || segment === "\r\n" || segment === "\r") {
+        if (offset === cursor) {
+          if (column >= width) {
+            lines.push("");
+            column = 0;
+          }
+          cursorRow = lines.length - 1;
+          cursorCol = column;
+        }
+        lines.push("");
+        column = 0;
+        offset += cells;
+        continue;
+      }
       // Move a two-cell character to the next row if only one cell remains.
       if (cells > 0 && column + cells > width) {
         lines.push("");
@@ -245,6 +259,9 @@ export class Carousel {
     let prefix = this.getPrefixByIndex(rowIndex);
     if (this.index === rowIndex && rowIndex !== 0) {
       prefix = `${prefix}> `;
+    } else if (/[\r\n]/.test(rowStr)) {
+      // Put the expansion hint before the text so clipping cannot hide it.
+      prefix = `${prefix}\u2193 `;
     }
     if (rowIndex !== 0 && !rowStr) {
       // The edge of the top or bottom panel

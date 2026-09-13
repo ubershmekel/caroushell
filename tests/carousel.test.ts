@@ -158,3 +158,34 @@ void test("getDisplayWidth handles ansi, emoji, combining, and full width", () =
   assert.equal(getDisplayWidth("界"), 2);
   assert.equal(getDisplayWidth("🙂"), 2);
 });
+
+void test("multiline history previews stay on one row and selected entries track each line", (t) => {
+  const { carousel, lastBlock } = narrowCarousel(t, 20, true);
+  const suggestion = "dir e:\n\necho 1\ndir c:\necho 2";
+  const history = new NullSuggester();
+  history.prefix = "H>";
+  t.mock.method(history, "latest", () => [suggestion]);
+  carousel.setTopSuggester(history);
+  carousel.render();
+  assert.equal(lastBlock().lines.length, 3);
+  assert.equal(lastBlock().lines[0], "H>\u2193 dir e:");
+  carousel.up();
+  for (let position = 0; position <= suggestion.length; position++) {
+    carousel.render();
+    const block = lastBlock();
+    assert.ok(block.lines.every((line) => !/[\r\n]/.test(line)));
+    const beforeCursor = suggestion.slice(0, position).split("\n");
+    assert.equal(block.cursorRow, 1 + beforeCursor.length - 1);
+    assert.equal(
+      block.cursorCol,
+      beforeCursor.length === 1
+        ? 4 + position
+        : beforeCursor[beforeCursor.length - 1].length,
+    );
+    assert.equal(carousel.getCurrentRow(), suggestion);
+    carousel.moveCursorRight();
+  }
+  carousel.resetIndex();
+  carousel.render();
+  assert.equal(lastBlock().lines.length, 3);
+});

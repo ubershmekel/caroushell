@@ -1,4 +1,7 @@
 import { spawn } from "child_process";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { exit } from "process";
 import { logLine } from "./logs";
 import { expandHomePath } from "./path-utils";
@@ -166,7 +169,9 @@ function parseCommandSegments(command: string): CommandSegment[] {
   return segments;
 }
 
-function tokenizeCommand(command: string): { value: string; quoted: boolean }[] {
+function tokenizeCommand(
+  command: string,
+): { value: string; quoted: boolean }[] {
   return parseCommandSegments(command).flatMap((segment) =>
     segment.type === "token"
       ? [{ value: segment.value, quoted: segment.quoted }]
@@ -201,6 +206,27 @@ export async function runUserCommand(command: string): Promise<boolean> {
   const trimmed = command.trim();
   if (!trimmed) return false;
 
+  // A multiline block is a shell program, not one Caroushell builtin with
+  // whitespace-separated arguments. cmd /c does not execute embedded newlines
+  // like Bash does; give it a script so all lines share shell state.
+  if (/[\r\n]/.test(trimmed)) {
+    if (!isWin) return runShellCommand(command);
+    const directory = await mkdtemp(path.join(tmpdir(), "caroushell-script-"));
+    try {
+      const script = path.join(directory, "commands.cmd");
+      await writeFile(
+        script,
+        "@echo off\r\n" +
+          expandCommandForShell(command).replace(/\r\n?|\n/g, "\r\n") +
+          "\r\n",
+        "utf8",
+      );
+      return await runShellCommand(`""${script}""`);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
   if (isWin && /^[a-zA-Z]:$/.test(trimmed)) {
     // Windows drive switch (eg "E:") should restore that drive's last cwd.
     const drive = trimmed.toUpperCase();
@@ -220,8 +246,10 @@ export async function runUserCommand(command: string): Promise<boolean> {
     return await builtInCommands[args[0]](args);
   }
 
-  const shellCommand = expandCommandForShell(command);
+  return runShellCommand(expandCommandForShell(command));
+}
 
+async function runShellCommand(shellCommand: string): Promise<boolean> {
   // "windowsVerbatimArguments: true" to prevent the bug of `echo "asdf"` outputting
   // \"asdf\" instead of "asdf". I wonder why node defaults to quoting args on windows.
   const proc = spawn(shellBinary, [...shellArgs, shellCommand], {

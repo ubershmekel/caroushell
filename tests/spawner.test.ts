@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { accessSync } from "node:fs";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,45 @@ import { test } from "node:test";
 import { runUserCommand } from "../src/spawner";
 
 const tmpSuffix = "caroushell-test";
+
+void test("multiline commands execute every line in order, including after a builtin", async () => {
+  const original = process.cwd();
+  const base = await makeTempDirectory();
+  try {
+    process.chdir(base);
+    await runUserCommand(
+      "cd .\n\necho first>result.txt\n\necho second>>result.txt",
+    );
+    assert.equal(
+      (await readFile("result.txt", "utf8")).replace(/\r/g, ""),
+      "first\nsecond\n",
+    );
+  } finally {
+    process.chdir(original);
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+void test("Windows multiline scripts preserve variables and execute directory listings", async (t) => {
+  if (process.platform !== "win32") return t.skip("cmd script behavior");
+  const original = process.cwd();
+  const base = await makeTempDirectory();
+  try {
+    process.chdir(base);
+    await runUserCommand(
+      'dir . > listing1.txt\n\n>result.txt echo 1\n\ndir . > listing2.txt\n\nset "PASTE_TEST_VALUE=2"\n>>result.txt echo %PASTE_TEST_VALUE%',
+    );
+    assert.equal(
+      (await readFile("result.txt", "utf8")).replace(/\r/g, ""),
+      "1\n2\n",
+    );
+    assert.ok((await readFile("listing1.txt", "utf8")).length > 0);
+    assert.ok((await readFile("listing2.txt", "utf8")).length > 0);
+  } finally {
+    process.chdir(original);
+    await rm(base, { recursive: true, force: true });
+  }
+});
 
 async function makeTempDirectory() {
   // On macOS, the temp directory can be under /var, a symlink to /private/var.

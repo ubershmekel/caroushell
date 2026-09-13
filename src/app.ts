@@ -1,6 +1,11 @@
 import { Terminal, colors } from "./terminal";
 import { Keyboard, KeyEvent } from "./keyboard";
-import { Carousel, NullSuggester, Suggester } from "./carousel";
+import {
+  Carousel,
+  NullSuggester,
+  Suggester,
+  wrapDisplayLine,
+} from "./carousel";
 import { HistorySuggester } from "./history-suggester";
 import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
@@ -39,6 +44,7 @@ export class App {
   private queueUpdateSuggestions: () => void;
   private usingFileSuggestions = false;
   private onKeyHandler?: (evt: KeyEvent) => void;
+  private onProcessExit = () => this.end();
 
   constructor(deps: AppDeps = {}) {
     this.terminal = deps.terminal ?? new Terminal();
@@ -176,19 +182,27 @@ export class App {
 
   async run() {
     await this.init();
-    this.keyboard.enableCapture();
-
     this.onKeyHandler = (evt: KeyEvent) => {
       void this.handleKey(evt);
     };
     this.keyboard.on("key", this.onKeyHandler);
+    process.once("exit", this.onProcessExit);
 
-    // Initial draw
-    this.render();
-    await this.carousel.updateSuggestions();
+    try {
+      this.keyboard.enableCapture();
+      this.terminal.reset();
+      // Initial draw
+      this.render();
+      await this.carousel.updateSuggestions();
+    } catch (err) {
+      this.end();
+      throw err;
+    }
   }
 
   end() {
+    process.off("exit", this.onProcessExit);
+    this.terminal.release();
     if (this.onKeyHandler) {
       this.keyboard.off("key", this.onKeyHandler);
       this.onKeyHandler = undefined;
@@ -219,23 +233,24 @@ export class App {
 
     // Log command in yellow
     const width = process.stdout.columns || 80;
-    const lines = [`${yellow}$ ${cmd}${reset}`];
+    const lines = wrapDisplayLine(`${yellow}$ ${cmd}${reset}`, width).lines;
     this.terminal.renderBlock(lines);
     // Ensure command output starts on the next line
     this.terminal.write("\n");
 
+    this.terminal.release();
     this.keyboard.disableCapture();
     this.terminal.disableWrites();
-    await this.preBroadcastCommand(cmd);
     try {
+      await this.preBroadcastCommand(cmd);
       const storeInHistory = await runUserCommand(cmd);
       if (storeInHistory) {
         await this.broadcastCommand(cmd);
       }
     } finally {
       this.terminal.enableWrites();
-      this.terminal.reset();
       this.keyboard.enableCapture();
+      this.terminal.reset();
     }
   }
 

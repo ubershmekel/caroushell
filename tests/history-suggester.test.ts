@@ -18,7 +18,11 @@ void test("descriptionForAi lists newest history entries first", async (ctx) => 
 
   const suggester = new HistorySuggester(historyFile);
   await suggester.init();
-  const commands = ["echo first", "echo second", "echo third"];
+  const commands = [
+    "echo first",
+    "dir e:\n\necho 1\ndir c:\necho 2",
+    "echo third",
+  ];
   for (const command of commands) {
     await suggester.add(command);
   }
@@ -26,6 +30,7 @@ void test("descriptionForAi lists newest history entries first", async (ctx) => 
   // Reload from disk to exercise the parser as well as in-memory ordering.
   const reloaded = new HistorySuggester(historyFile);
   await reloaded.init();
+  assert.deepEqual(reloaded.latest(), [...commands].reverse());
 
   const lines = reloaded.descriptionForAi().split("\n");
 

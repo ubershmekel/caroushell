@@ -28,11 +28,19 @@ export class Terminal {
   }
 
   reset() {
+    // Restore Caroushell's prompt modes, not a full terminal reset.
+    // See docs/modes.md for mode ownership and command handoff.
     // Some apps (such as vim) change the terminal cursor mode.
     // We need to reset it to the default. To avoid arrow keys causing this:
     // $> OAOBOCODODODODOAOAOCOB
     const RESET_CURSOR_MODE = "\x1b[?1l";
     this.write(RESET_CURSOR_MODE);
+    this.write("\x1b[?2004h");
+  }
+
+  release() {
+    // Child programs and the parent shell must manage their own paste mode.
+    this.write("\x1b[?2004l");
   }
 
   private canWrite(): boolean {
