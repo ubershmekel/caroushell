@@ -121,8 +121,12 @@ Caroushell opens an interactive prompt:
 - Use arrow keys to move between suggestions in the carousel.
 - Press `Enter` to run the highlighted command.
 - Press `Ctrl+C` to exit. `Ctrl+D` exits when the current row is empty.
+- Press `Alt+M`, or type `.menu` and press Enter, to open the Caroushell menu. Choose a top or bottom panel
+  source (History, Files, configured AI, or Off) with Up/Down and Enter. Esc
+  goes back or closes the menu. Panel choices last for the current session.
 - Press `Tab` to autocomplete a file suggestion or browse files and folders with
-  the arrow keys.
+  the arrow keys. Enter accepts a file match; Esc restores your selected panel
+  layout.
 
 Logs are written to `~/.caroushell/logs/MM-DD.txt`. Inspect these files if you
 need to debug AI suggestions or the terminal renderer. Configuration lives at

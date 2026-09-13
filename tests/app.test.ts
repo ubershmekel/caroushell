@@ -350,3 +350,101 @@ void test("down from multiline last line moves to ai suggestion", async () => {
 
   app.end();
 });
+
+void test("Alt-M menu preserves input and survives asynchronous suggester redraws", async () => {
+  const terminal = new RecordingTerminal();
+  const history = new StaticSuggester("H>", ["echo history"]);
+  const app = new App({
+    terminal,
+    topPanel: history,
+    files: new NullFileSuggester(),
+    suggesters: [],
+  });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  app.carousel.setInputBuffer("unfinished command", 4);
+  await key("alt-m");
+  await history.refreshSuggestions(app.carousel, 2);
+  assert.match(
+    terminal.lastBlock().lines.join("\n").replace(ANSI_ESCAPE_REGEX, ""),
+    /Caroushell  \/ Menu/,
+  );
+  assert.doesNotMatch(terminal.lastBlock().lines.join("\n"), /AI/);
+  await app.handleKey({ name: "char", sequence: "ignored" });
+  await key("enter");
+  await key("down");
+  await key("escape");
+  await key("escape");
+  assert.equal(app.carousel.getInputBuffer(), "unfinished command");
+  assert.equal(app.carousel.getInputLineInfoAtCursor().column, 4);
+  assert.equal(app.carousel.getSuggesters()[0], history);
+});
+
+void test(".menu opens controls without executing a shell command", async () => {
+  const terminal = new RecordingTerminal();
+  const app = new App({
+    terminal,
+    topPanel: new StaticSuggester("H>", []),
+    files: new NullFileSuggester(),
+    suggesters: [],
+  });
+  (app as any).runCommand = async () => assert.fail(".menu must not execute");
+  app.carousel.setInputBuffer("  .menu  ");
+  await app.handleKey({ name: "enter", sequence: "\r" });
+  assert.match(terminal.lastBlock().lines[0], /Caroushell/);
+  await app.handleKey({ name: "escape", sequence: "\x1b" });
+  assert.equal(app.carousel.getInputBuffer(), "");
+  assert.doesNotMatch(terminal.lastBlock().lines.join("\n"), /Caroushell/);
+});
+
+void test("menu can hide both panels and Tab temporarily opens completion", async () => {
+  const terminal = new RecordingTerminal();
+  const files = new NullFileSuggester();
+  const app = new App({
+    terminal,
+    topPanel: new StaticSuggester("H>", []),
+    files,
+    suggesters: [],
+  });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  await key("alt-m");
+  await key("enter");
+  await key("up"); // History wraps to Off.
+  await key("enter");
+  assert.equal(terminal.lastBlock().lines.length, 1);
+  await key("tab");
+  assert.equal(app.carousel.getSuggesters()[0], files);
+  assert.equal(terminal.lastBlock().lines.length, 3);
+  await key("escape");
+  assert.equal(terminal.lastBlock().lines.length, 1);
+  await key("tab");
+  await key("tab"); // Tab again toggles back.
+  assert.equal(terminal.lastBlock().lines.length, 1);
+  await key("alt-m");
+  assert.match(terminal.lastBlock().lines[0], /Caroushell/);
+});
+
+void test("independent panel choices allow duplicates and bottom-only completion", async () => {
+  const terminal = new RecordingTerminal();
+  const history = new StaticSuggester("H>", ["echo hello"]);
+  const files = new NullFileSuggester();
+  const app = new App({ terminal, topPanel: history, files, suggesters: [] });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  await key("alt-m");
+  await key("down");
+  await key("enter");
+  await key("down"); // Off wraps to History.
+  await key("enter");
+  assert.deepEqual(app.carousel.getSuggesters(), [history, history]);
+  await key("alt-m");
+  await key("enter");
+  await key("up");
+  await key("enter");
+  await key("tab");
+  assert.equal(app.carousel.getSuggesters()[1], files);
+  await key("escape");
+  assert.equal(app.carousel.getSuggesters()[1], history);
+  await key("tab");
+  await key("tab"); // Tab again toggles back.
+  assert.equal(app.carousel.getSuggesters()[1], history);
+  assert.equal(terminal.lastBlock().lines.length, 3);
+});

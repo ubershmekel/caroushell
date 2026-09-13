@@ -162,3 +162,14 @@ void test("paste split across chunks stays one text insertion", (t) => {
   send("llo\x1b[201~");
   assert.deepEqual(events, [{ name: "char", sequence: "hello" }]);
 });
+
+void test("Alt-M is recognized across chunk boundaries", () => {
+  for (const sequence of ["\x1bm", "\x1bM"]) {
+    for (let split = 1; split < sequence.length; split++) {
+      const events = capture([sequence.slice(0, split), sequence.slice(split)]);
+      assert.equal(events.length, 1);
+      assert.equal(events[0].name, "alt-m");
+      assert.equal(events[0].meta, true);
+    }
+  }
+});

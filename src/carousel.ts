@@ -164,6 +164,15 @@ type LineInfo = {
 };
 
 export class Carousel {
+  private overlay: (() => string[]) | null = null;
+
+  /**
+   * When set, render() draws these lines (e.g. the menu) instead of the
+   * carousel, so a suggester finishing in the background can't draw over it.
+   */
+  setOverlay(overlay: (() => string[]) | null) {
+    this.overlay = overlay;
+  }
   private top: Suggester;
   private bottom: Suggester;
   private topRowCount: number;
@@ -194,8 +203,12 @@ export class Carousel {
     if (typeof input === "string") {
       this.setInputBuffer(input);
     }
-    void this.top.refreshSuggestions(this, this.topRowCount);
-    void this.bottom.refreshSuggestions(this, this.bottomRowCount);
+    if (this.topRowCount > 0) {
+      void this.top.refreshSuggestions(this, this.topRowCount);
+    }
+    if (this.bottomRowCount > 0 && this.bottom !== this.top) {
+      void this.bottom.refreshSuggestions(this, this.bottomRowCount);
+    }
   }
 
   up() {
@@ -628,6 +641,14 @@ export class Carousel {
   }
 
   render() {
+    if (this.overlay) {
+      const width = Math.max(2, process.stdout.columns || 80);
+      const lines = this.overlay().flatMap(
+        (line) => wrapDisplayLine(line, width).lines,
+      );
+      this.terminal.renderBlock(lines, 0, 0);
+      return;
+    }
     logLine("Rendering carousel");
     const width = Math.max(2, process.stdout.columns || 80);
     const lines: string[] = [];
@@ -689,6 +710,20 @@ export class Carousel {
     if (this.index > 0) {
       const topLength = this.top.latest().length;
       this.index = Math.min(this.index, topLength);
+    }
+  }
+
+  /** Replace the suggesters shown above and below the prompt. An Off (Null) panel takes no rows. */
+  setPanels(top: Suggester, bottom: Suggester) {
+    this.top = top;
+    this.bottom = bottom;
+    this.topRowCount = top instanceof NullSuggester ? 0 : 2;
+    this.bottomRowCount = bottom instanceof NullSuggester ? 0 : 2;
+    // Keep the selection where possible, only clamping it to the new panels.
+    if (this.index > 0) {
+      this.index = Math.min(this.index, this.top.latest().length);
+    } else if (this.index < 0) {
+      this.index = Math.max(this.index, -this.bottom.latest().length);
     }
   }
 

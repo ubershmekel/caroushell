@@ -9,6 +9,8 @@ in `dist/` and dependencies in `node_modules/` are intentionally omitted.
   onboarding, config loading, and app startup.
 - [../src/app.ts](../src/app.ts): Main controller that wires keyboard input,
   carousel rendering, suggesters, and command execution together.
+- [../src/menu.ts](../src/menu.ts): Caroushell menu navigation and styled rows;
+  returns actions for the app to apply without executing shell commands.
 - [../src/carousel.ts](../src/carousel.ts): Core prompt/suggestions state
   machine plus rendering helpers for the top, prompt, and bottom rows.
 - [../src/terminal.ts](../src/terminal.ts): Low-level terminal painter that

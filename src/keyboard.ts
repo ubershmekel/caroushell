@@ -21,6 +21,10 @@ const KEY_DEFINITIONS: Record<string, KeySpec[]> = {
 
   // Arrows (ANSI)
   up: [{ sequence: "\u001b[A" }],
+  "alt-m": [
+    { sequence: "\u001bm", meta: true },
+    { sequence: "\u001bM", meta: true },
+  ],
   down: [{ sequence: "\u001b[B" }],
   right: [{ sequence: "\u001b[C" }],
   left: [{ sequence: "\u001b[D" }],

@@ -10,6 +10,7 @@ import { HistorySuggester } from "./history-suggester";
 import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
 import { logLine } from "./logs";
+import { CaroushellMenu } from "./menu";
 
 type FileSuggesterLike = Suggester & {
   findUniqueMatch(prefix: string): Promise<string | null>;
@@ -42,8 +43,29 @@ export class App {
   private handlers: Partial<
     Record<KeyEvent["name"], (evt: KeyEvent) => void | Promise<void>>
   >;
+  /**
+   * Ask the visible suggesters to recompute for the current input without
+   * waiting. Each suggester redraws the carousel itself when its results
+   * arrive, so key handlers stay responsive even when e.g. the AI is slow.
+   */
   private queueUpdateSuggestions: () => void;
-  private usingFileSuggestions = false;
+  /** The "Off" choice in the menu: a suggester that shows no rows. */
+  private off = new NullSuggester();
+  /**
+   * The panels the user chose in the menu (History by default on top).
+   * These are the "home" panels that Tab completion temporarily replaces.
+   */
+  private selectedTop: Suggester;
+  private selectedBottom: Suggester;
+  /**
+   * Which panel is temporarily showing file completions after Tab, or null
+   * when both panels show the user's selection. Usually "top"; "bottom" when
+   * the top panel is Off but the bottom one isn't, so files appear where the
+   * user is already looking.
+   */
+  private completionPanel: "top" | "bottom" | null = null;
+  /** The open settings menu (Alt+M or `.menu`); while set it receives all keys. */
+  private menu: CaroushellMenu<Suggester> | null = null;
   private onKeyHandler?: (evt: KeyEvent) => void;
   private onProcessExit = () => this.end();
 
@@ -53,6 +75,8 @@ export class App {
     this.history = deps.topPanel ?? new HistorySuggester();
     this.bottomSuggester = deps.bottomPanel ?? new NullSuggester();
     this.files = deps.files ?? new FileSuggester();
+    this.selectedTop = this.history;
+    this.selectedBottom = this.bottomSuggester;
     this.suggesters = deps.suggesters ?? [
       this.history,
       this.bottomSuggester,
@@ -169,9 +193,17 @@ export class App {
       tab: async () => {
         const completed = await this.tryAutocompleteFile();
         if (completed) return;
-        this.toggleTopSuggester();
+        if (this.completionPanel) this.restorePanels();
+        else this.showFileSuggestions();
+        this.render();
+        this.queueUpdateSuggestions();
       },
-      escape: () => {},
+      "alt-m": () => this.openMenu(),
+      escape: () => {
+        this.restorePanels();
+        this.render();
+        this.queueUpdateSuggestions();
+      },
     };
   }
 
@@ -224,6 +256,17 @@ export class App {
 
   /** Dispatch a recognized key and wait for any asynchronous handler to finish. */
   async handleKey(evt: KeyEvent) {
+    if (this.menu) {
+      const result = this.menu.handleKey(evt);
+      if (result?.action === "select") {
+        if (result.panel === "top") this.selectedTop = result.value;
+        else this.selectedBottom = result.value;
+        this.restorePanels();
+      }
+      if (result) this.closeMenu();
+      this.render();
+      return;
+    }
     const fn = this.handlers[evt.name];
     if (fn) {
       await fn(evt);
@@ -288,6 +331,11 @@ export class App {
     }
     const rawInput = this.carousel.getInputBuffer();
     const cmd = collapseLineContinuations(rawInput).trim();
+    if (cmd === ".menu") {
+      this.carousel.clearInput();
+      this.openMenu();
+      return;
+    }
     await this.confirmCommandRun(cmd);
   }
 
@@ -299,6 +347,7 @@ export class App {
   /** Clear submitted input, run the command, then redraw and refresh suggestions. */
   private async confirmCommandRun(cmd: string) {
     this.carousel.setInputBuffer("", 0);
+    this.restorePanels();
     await this.runCommand(cmd);
     // Carousel should point to the prompt
     this.carousel.resetIndex();
@@ -321,13 +370,16 @@ export class App {
   private async tryAutocompleteFile(): Promise<boolean> {
     const wordInfo = this.carousel.getWordInfoAtCursor();
     if (!wordInfo.prefix) return false;
+    const input = this.carousel.getInputBuffer();
     const match = await this.files.findUniqueMatch(wordInfo.prefix);
+    if (this.menu || input !== this.carousel.getInputBuffer()) return true;
     if (!match) return false;
     const current = this.carousel.getRow(0);
     const before = current.slice(0, wordInfo.start);
     const after = current.slice(wordInfo.end);
     const next = `${before}${match}${after}`;
     this.carousel.setInputBuffer(next, wordInfo.start + match.length);
+    this.restorePanels();
     this.render();
     this.queueUpdateSuggestions();
     return true;
@@ -346,32 +398,67 @@ export class App {
     const nextInput = `${before}${suggestion}${after}`;
     this.carousel.setInputBuffer(nextInput, wordInfo.start + suggestion.length);
     this.carousel.resetIndex();
-    this.showHistorySuggestions();
+    this.restorePanels();
     this.render();
     this.queueUpdateSuggestions();
     return true;
   }
 
-  private toggleTopSuggester() {
-    if (this.usingFileSuggestions) {
-      this.showHistorySuggestions();
-    } else {
-      this.showFileSuggestions();
+  /** Suggesters the menu offers for each panel. AI is listed only when configured. */
+  private sources() {
+    const choices = [
+      { label: "History", value: this.history },
+      { label: "Files", value: this.files },
+    ];
+    if (!(this.bottomSuggester instanceof NullSuggester)) {
+      choices.push({ label: "AI", value: this.bottomSuggester });
     }
+    choices.push({ label: "Off", value: this.off });
+    return choices;
+  }
+
+  /** Show the settings menu in place of the carousel, dropping any Tab completion first. */
+  private openMenu() {
+    this.restorePanels();
+    this.menu = new CaroushellMenu(this.sources(), {
+      top: this.selectedTop,
+      bottom: this.selectedBottom,
+    });
+    this.carousel.setOverlay(() => this.menu!.lines());
     this.render();
+  }
+
+  /** Hide the menu and refresh suggestions, since the panels may have changed. */
+  private closeMenu() {
+    this.menu = null;
+    this.carousel.setOverlay(null);
     this.queueUpdateSuggestions();
   }
 
-  private showHistorySuggestions() {
-    if (!this.usingFileSuggestions) return;
-    this.usingFileSuggestions = false;
-    this.carousel.setTopSuggester(this.history);
+  /**
+   * Leave Tab completion mode: put the user's menu-selected suggesters back
+   * into both panels. Safe to call when not in completion mode.
+   */
+  private restorePanels() {
+    this.completionPanel = null;
+    this.carousel.setPanels(this.selectedTop, this.selectedBottom);
   }
 
+  /**
+   * Enter Tab completion mode: swap file suggestions into one panel (see
+   * completionPanel) while leaving the other panel as the user selected it.
+   */
   private showFileSuggestions() {
-    if (this.usingFileSuggestions) return;
-    this.usingFileSuggestions = true;
-    this.carousel.setTopSuggester(this.files);
+    if (this.completionPanel) return;
+    this.completionPanel =
+      this.selectedTop instanceof NullSuggester &&
+      !(this.selectedBottom instanceof NullSuggester)
+        ? "bottom"
+        : "top";
+    this.carousel.setPanels(
+      this.completionPanel === "top" ? this.files : this.selectedTop,
+      this.completionPanel === "bottom" ? this.files : this.selectedBottom,
+    );
   }
 
   private async preBroadcastCommand(cmd: string) {
