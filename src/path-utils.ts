@@ -13,7 +13,10 @@ export function expandHomePath(input: string): string {
   const expandedHome =
     normalizedSuffix === ""
       ? os.homedir()
-      : path.resolve(os.homedir(), normalizedSuffix.replace(/[\\/]/g, path.sep));
+      : path.resolve(
+          os.homedir(),
+          normalizedSuffix.replace(/[\\/]/g, path.sep),
+        );
 
   return prefix + expandedHome;
 }
