@@ -113,6 +113,44 @@ void test("wrapping preserves wide and combining characters and counts color cod
   assert.equal(lastBlock().cursorCol, 0);
 });
 
+for (const panel of ["top", "bottom"] as const) {
+  void test(`left/right reveal the entire selected ${panel} suggestion in a narrow terminal`, (t) => {
+    const { carousel, lastBlock } = narrowCarousel(t, 10, true);
+    const suggestion = "abcdefghijklmnop";
+    const suggester = carousel.getSuggesters()[panel === "top" ? 0 : 1];
+    suggester.prefix = "H>";
+    t.mock.method(suggester, "latest", () => [suggestion]);
+    if (panel === "top") carousel.up();
+    else carousel.down();
+
+    const assertCursor = (position: number) => {
+      carousel.render();
+      const block = lastBlock();
+      assert.equal(block.lines.slice(1, -1).join(""), "H>> " + suggestion);
+      assert.ok(block.lines.every((line) => getDisplayWidth(line) <= 10));
+      assert.equal(block.cursorRow, 1 + Math.floor((4 + position) / 10));
+      assert.equal(block.cursorCol, (4 + position) % 10);
+      assert.equal(carousel.getCurrentRow(), suggestion);
+      assert.equal(carousel.getInputBuffer(), "");
+    };
+
+    assertCursor(0);
+    for (let position = 1; position <= suggestion.length; position++) {
+      carousel.moveCursorRight();
+      assertCursor(position);
+    }
+    for (let position = suggestion.length - 1; position >= 0; position--) {
+      carousel.moveCursorLeft();
+      assertCursor(position);
+    }
+
+    carousel.resetIndex();
+    carousel.render();
+    assert.equal(lastBlock().lines.length, 3);
+    assert.equal(lastBlock().cursorRow, 1);
+  });
+}
+
 void test("getDisplayWidth handles ansi, emoji, combining, and full width", () => {
   assert.equal(getDisplayWidth("abc"), 3);
   assert.equal(getDisplayWidth("\u001b[31mred\u001b[0m"), 3);

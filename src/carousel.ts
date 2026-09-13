@@ -577,20 +577,28 @@ export class Carousel {
         if (this.index === rowIndex) {
           const rowStr = this.getRow(rowIndex);
           const prefix = this.getSuggestionPrefix(rowIndex, rowStr);
-          cursorRow = lines.length;
           const cursorText = rowStr.slice(
             0,
             Math.min(this.cursorIndex, rowStr.length),
           );
-          cursorCol = Math.min(
-            width - 1,
+          // The selected suggestion is browsable just like the prompt: show all
+          // wrapped rows and map its cursor into them instead of pinning it to
+          // the right edge of a clipped preview.
+          const wrapped = wrapDisplayLine(
+            this.getFormattedSuggestionRow(rowIndex),
+            width,
             getDisplayWidth(prefix) + getDisplayWidth(cursorText),
           );
+          cursorRow = lines.length + wrapped.cursorRow;
+          cursorCol = wrapped.cursorCol;
+          lines.push(...wrapped.lines);
+        } else {
+          // Keep unselected suggestions as compact, single-row previews.
+          lines.push(
+            wrapDisplayLine(this.getFormattedSuggestionRow(rowIndex), width)
+              .lines[0] + colors.reset,
+          );
         }
-        lines.push(
-          wrapDisplayLine(this.getFormattedSuggestionRow(rowIndex), width)
-            .lines[0] + colors.reset,
-        );
       }
     }
     this.terminal.renderBlock(lines, cursorRow, cursorCol);
