@@ -16,6 +16,7 @@ export class CaroushellMenu<T> {
   constructor(
     private sources: MenuSource<T>[],
     private selected: Record<Panel, T>,
+    private version = "",
   ) {}
 
   private label(panel: Panel): string {
@@ -53,7 +54,8 @@ export class CaroushellMenu<T> {
   }
 
   lines(): string[] {
-    const { purple, reset } = colors;
+    const { purple, dimmest, reset } = colors;
+    const version = this.version ? ` ${dimmest}v${this.version}${reset}` : "";
     const title =
       this.page === "main"
         ? "Menu"
@@ -71,7 +73,7 @@ export class CaroushellMenu<T> {
               page !== "main" && label === this.label(page) ? "✓ current" : "",
           }));
     return [
-      ` ${purple}🎠 Caroushell${reset}  ${reset}/ ${title}${reset}`,
+      ` ${purple}🎠 Caroushell${reset}${version}  ${reset}/ ${title}${reset}`,
       "",
       ...entries.map(({ label, detail }, index) => {
         const active = index === this.index;

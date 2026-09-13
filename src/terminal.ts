@@ -41,6 +41,8 @@ export class Terminal {
   release() {
     // Child programs and the parent shell must manage their own paste mode.
     this.write("\x1b[?2004l");
+    // The menu hides the cursor; never exit with it still hidden.
+    this.showCursor();
   }
 
   private canWrite(): boolean {
@@ -93,7 +95,12 @@ export class Terminal {
   }
 
   // Render a block of lines by clearing previous block (if any) and writing fresh
-  renderBlock(lines: string[], cursorRow?: number, cursorCol?: number) {
+  renderBlock(
+    lines: string[],
+    cursorRow?: number,
+    cursorCol?: number,
+    opts: { hideCursor?: boolean } = {},
+  ) {
     if (!this.canWrite()) return;
     this.withCork(() => {
       this.hideCursor();
@@ -125,7 +132,7 @@ export class Terminal {
         const targetCol = Math.max(0, cursorCol ?? this.cursorCol);
         this.moveCursorTo(targetRow, targetCol);
       }
-      this.showCursor();
+      if (!opts.hideCursor) this.showCursor();
     });
   }
 

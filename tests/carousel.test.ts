@@ -27,13 +27,10 @@ function narrowCarousel(t: TestContext, width = 10, panels = false) {
       };
     },
   );
-  const carousel = new Carousel({
-    terminal,
-    top: new NullSuggester(),
-    bottom: new NullSuggester(),
-    topRows: panels ? 1 : 0,
-    bottomRows: panels ? 1 : 0,
-  });
+  // Empty panels that still take a row each when `panels` is set.
+  const panel = () =>
+    Object.assign(new NullSuggester(), { rowCount: panels ? 1 : 0 });
+  const carousel = new Carousel({ terminal, top: panel(), bottom: panel() });
   return { carousel, terminal, lastBlock: () => block };
 }
 

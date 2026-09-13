@@ -27,7 +27,7 @@ void test("reset restores prompt modes and release disables bracketed paste", ()
   assert.ok(out.chunks.join("").includes("\x1b[?2004h"));
   out.chunks = [];
   terminal.release();
-  assert.equal(out.chunks.join(""), "\x1b[?2004l");
+  assert.equal(out.chunks.join(""), "\x1b[?2004l\x1b[?25h");
 });
 
 void test("renderBlock hides the cursor while repainting", async () => {
@@ -74,8 +74,6 @@ void test("prompt separators render in a different color than prompt text", () =
   const carousel = new Carousel({
     top: new NullSuggester(),
     bottom: new NullSuggester(),
-    topRows: 0,
-    bottomRows: 0,
     terminal,
     promptLine0: () => "host:path > ",
   });

@@ -11,6 +11,7 @@ import { FileSuggester } from "./file-suggester";
 import { runUserCommand } from "./spawner";
 import { logLine } from "./logs";
 import { CaroushellMenu } from "./menu";
+import { getVersion } from "./version";
 
 type FileSuggesterLike = Suggester & {
   findUniqueMatch(prefix: string): Promise<string | null>;
@@ -85,8 +86,6 @@ export class App {
     this.carousel = new Carousel({
       top: this.history,
       bottom: this.bottomSuggester,
-      topRows: 2,
-      bottomRows: this.bottomSuggester instanceof NullSuggester ? 0 : 2,
       terminal: this.terminal,
       promptLine0: deps.promptLine0,
     });
@@ -420,10 +419,11 @@ export class App {
   /** Show the settings menu in place of the carousel, dropping any Tab completion first. */
   private openMenu() {
     this.restorePanels();
-    this.menu = new CaroushellMenu(this.sources(), {
-      top: this.selectedTop,
-      bottom: this.selectedBottom,
-    });
+    this.menu = new CaroushellMenu(
+      this.sources(),
+      { top: this.selectedTop, bottom: this.selectedBottom },
+      getVersion(),
+    );
     this.carousel.setOverlay(() => this.menu!.lines());
     this.render();
   }

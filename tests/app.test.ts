@@ -11,11 +11,26 @@ import { Terminal } from "../src/terminal";
 const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
 
 class RecordingTerminal extends Terminal {
-  blocks: { lines: string[]; cursorRow?: number; cursorCol?: number }[] = [];
+  blocks: {
+    lines: string[];
+    cursorRow?: number;
+    cursorCol?: number;
+    hideCursor?: boolean;
+  }[] = [];
   writes: string[] = [];
 
-  renderBlock(lines: string[], cursorRow?: number, cursorCol?: number) {
-    this.blocks.push({ lines: [...lines], cursorRow, cursorCol });
+  renderBlock(
+    lines: string[],
+    cursorRow?: number,
+    cursorCol?: number,
+    opts: { hideCursor?: boolean } = {},
+  ) {
+    this.blocks.push({
+      lines: [...lines],
+      cursorRow,
+      cursorCol,
+      hideCursor: opts.hideCursor,
+    });
   }
 
   write(text: string) {
@@ -366,7 +381,7 @@ void test("Alt-M menu preserves input and survives asynchronous suggester redraw
   await history.refreshSuggestions(app.carousel, 2);
   assert.match(
     terminal.lastBlock().lines.join("\n").replace(ANSI_ESCAPE_REGEX, ""),
-    /Caroushell  \/ Menu/,
+    /Caroushell v\d+\.\d+\.\d+  \/ Menu/,
   );
   assert.doesNotMatch(terminal.lastBlock().lines.join("\n"), /AI/);
   await app.handleKey({ name: "char", sequence: "ignored" });
@@ -390,10 +405,12 @@ void test(".menu opens controls without executing a shell command", async () => 
   (app as any).runCommand = async () => assert.fail(".menu must not execute");
   app.carousel.setInputBuffer("  .menu  ");
   await app.handleKey({ name: "enter", sequence: "\r" });
-  assert.match(terminal.lastBlock().lines[0], /Caroushell/);
+  assert.match(terminal.lastBlock().lines[0], /Caroushell.*v\d+\.\d+\.\d+/);
+  assert.equal(terminal.lastBlock().hideCursor, true);
   await app.handleKey({ name: "escape", sequence: "\x1b" });
   assert.equal(app.carousel.getInputBuffer(), "");
   assert.doesNotMatch(terminal.lastBlock().lines.join("\n"), /Caroushell/);
+  assert.notEqual(terminal.lastBlock().hideCursor, true);
 });
 
 void test("menu can hide both panels and Tab temporarily opens completion", async () => {

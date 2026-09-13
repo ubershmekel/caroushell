@@ -126,8 +126,13 @@ export function wrapDisplayLine(text: string, width: number, cursor?: number) {
   return { lines, cursorRow, cursorCol };
 }
 
+/** Rows a panel shows when its suggester doesn't set rowCount. */
+const DEFAULT_PANEL_ROWS = 2;
+
 export interface Suggester {
   prefix: string;
+  /** Rows this suggester's panel takes on screen. Defaults to DEFAULT_PANEL_ROWS. */
+  rowCount?: number;
   init(): Promise<void>;
   refreshSuggestions(carousel: Carousel, maxDisplayed: number): Promise<void>;
   latest(): string[];
@@ -138,6 +143,8 @@ export interface Suggester {
 
 export class NullSuggester implements Suggester {
   prefix = "";
+  // An Off panel takes no space.
+  rowCount = 0;
   async init() {}
   async refreshSuggestions() {}
   latest() {
@@ -186,16 +193,14 @@ export class Carousel {
   constructor(opts: {
     top: Suggester;
     bottom: Suggester;
-    topRows: number;
-    bottomRows: number;
     terminal: Terminal;
     promptLine0?: () => string;
   }) {
     this.terminal = opts.terminal;
     this.top = opts.top;
     this.bottom = opts.bottom;
-    this.topRowCount = opts.topRows;
-    this.bottomRowCount = opts.bottomRows;
+    this.topRowCount = opts.top.rowCount ?? DEFAULT_PANEL_ROWS;
+    this.bottomRowCount = opts.bottom.rowCount ?? DEFAULT_PANEL_ROWS;
     this.promptLine0Getter = opts.promptLine0 ?? (() => "$> ");
   }
 
@@ -646,7 +651,8 @@ export class Carousel {
       const lines = this.overlay().flatMap(
         (line) => wrapDisplayLine(line, width).lines,
       );
-      this.terminal.renderBlock(lines, 0, 0);
+      // No text input in the overlay, so a blinking cursor would just be noise.
+      this.terminal.renderBlock(lines, 0, 0, { hideCursor: true });
       return;
     }
     logLine("Rendering carousel");
@@ -717,8 +723,8 @@ export class Carousel {
   setPanels(top: Suggester, bottom: Suggester) {
     this.top = top;
     this.bottom = bottom;
-    this.topRowCount = top instanceof NullSuggester ? 0 : 2;
-    this.bottomRowCount = bottom instanceof NullSuggester ? 0 : 2;
+    this.topRowCount = top.rowCount ?? DEFAULT_PANEL_ROWS;
+    this.bottomRowCount = bottom.rowCount ?? DEFAULT_PANEL_ROWS;
     // Keep the selection where possible, only clamping it to the new panels.
     if (this.index > 0) {
       this.index = Math.min(this.index, this.top.latest().length);
