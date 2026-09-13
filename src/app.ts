@@ -25,6 +25,7 @@ type AppDeps = {
   promptLine0?: () => string;
 };
 
+/** Remove backslash-newline pairs before passing multiline input to the shell. */
 function collapseLineContinuations(input: string): string {
   return input.replace(/\\\r?\n/g, "");
 }
@@ -174,12 +175,19 @@ export class App {
     };
   }
 
+  /** Initialize each configured suggester before requesting suggestions. */
   async init() {
     for (const s of this.suggesters) {
       await s.init();
     }
   }
 
+  /**
+   * Initialize suggestions, attach input and exit listeners, and draw the prompt.
+   * Resolves after the initial suggestion update; keyboard events keep the app
+   * interactive afterward. If terminal setup or the first update fails, release
+   * terminal and keyboard state before propagating the error.
+   */
   async run() {
     await this.init();
     this.onKeyHandler = (evt: KeyEvent) => {
@@ -200,6 +208,10 @@ export class App {
     }
   }
 
+  /**
+   * Release terminal state, detach listeners, and stop capturing keyboard input.
+   * Used for startup failures and process exit; does not terminate the process.
+   */
   end() {
     process.off("exit", this.onProcessExit);
     this.terminal.release();
@@ -210,6 +222,7 @@ export class App {
     this.keyboard.disableCapture();
   }
 
+  /** Dispatch a recognized key and wait for any asynchronous handler to finish. */
   async handleKey(evt: KeyEvent) {
     const fn = this.handlers[evt.name];
     if (fn) {
@@ -222,6 +235,12 @@ export class App {
     // Cursor placement handled inside carousel render.
   }
 
+  /**
+   * Echo and execute a command while giving it control of terminal input/output.
+   * Notify suggesters before execution and, when eligible, afterward for history.
+   * Restore carousel terminal writes and keyboard capture even if execution fails.
+   * Empty commands only print a prompt marker.
+   */
   private async runCommand(cmd: string) {
     const { yellow, reset } = colors;
     if (!cmd) {
@@ -254,6 +273,7 @@ export class App {
     }
   }
 
+  /** Insert a continued line at a trailing backslash, or submit the prompt. */
   private async enterOnPrompt() {
     // Check for '\' line continuation
     const lineInfo = this.carousel.getInputLineInfoAtCursor();
@@ -276,6 +296,7 @@ export class App {
     await this.confirmCommandRun(cmd);
   }
 
+  /** Clear submitted input, run the command, then redraw and refresh suggestions. */
   private async confirmCommandRun(cmd: string) {
     this.carousel.setInputBuffer("", 0);
     await this.runCommand(cmd);
@@ -289,6 +310,7 @@ export class App {
     this.queueUpdateSuggestions();
   }
 
+  /** Clear the carousel, release input and terminal state, and exit successfully. */
   private exit() {
     // Clear terminal contents before shutting down to leave a clean screen.
     this.terminal.renderBlock([]);
