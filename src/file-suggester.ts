@@ -75,6 +75,10 @@ export class FileSuggester implements Suggester {
     return path.resolve(process.cwd(), converted);
   }
 
+  accept(row: string) {
+    return { insert: row };
+  }
+
   latest(): string[] {
     return this.latestSuggestions;
   }

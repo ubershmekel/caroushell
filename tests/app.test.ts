@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { App } from "../src/app";
 import type { Carousel, Suggester } from "../src/carousel";
 import { Keyboard, keySequence } from "../src/keyboard";
+import { PathNavigatorSuggester } from "../src/path-navigator-suggester";
 import { Terminal } from "../src/terminal";
 
 const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
@@ -78,8 +82,12 @@ class StaticSuggester implements Suggester {
 }
 
 class NullFileSuggester extends StaticSuggester {
-  constructor() {
-    super("F>", []);
+  constructor(items: string[] = []) {
+    super("F>", items);
+  }
+
+  accept(row: string) {
+    return { insert: row };
   }
 
   async findUniqueMatch(): Promise<string | null> {
@@ -96,7 +104,7 @@ void test("prompt owns paste mode across command handoff, failure, and shutdown"
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
+    history: history,
     files,
     suggesters: [],
   });
@@ -136,7 +144,7 @@ void test("multiline bracketed paste waits for a typed Enter", async () => {
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
+    history: history,
     files,
     suggesters: [],
   });
@@ -166,7 +174,7 @@ void test("command display tracks multiline input as separate terminal rows", as
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
+    history: history,
     files,
     suggesters: [],
   });
@@ -203,8 +211,8 @@ void test("app prompt redraw keeps suggestion row intact", async () => {
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
-    bottomPanel: ai,
+    history: history,
+    ai,
     files,
     suggesters: [history, ai, files],
   });
@@ -244,8 +252,8 @@ void test("backslash continuation keeps multiline input until complete", async (
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
-    bottomPanel: ai,
+    history: history,
+    ai,
     files,
     suggesters: [history, ai, files],
   });
@@ -289,8 +297,8 @@ void test("up/down traverse multiline input before carousel selection", async ()
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
-    bottomPanel: ai,
+    history: history,
+    ai,
     files,
     suggesters: [history, ai, files],
   });
@@ -337,8 +345,8 @@ void test("down from multiline last line moves to ai suggestion", async () => {
   const app = new App({
     terminal,
     keyboard,
-    topPanel: history,
-    bottomPanel: ai,
+    history: history,
+    ai,
     files,
     suggesters: [history, ai, files],
   });
@@ -371,7 +379,7 @@ void test("Alt-M menu preserves input and survives asynchronous suggester redraw
   const history = new StaticSuggester("H>", ["echo history"]);
   const app = new App({
     terminal,
-    topPanel: history,
+    history: history,
     files: new NullFileSuggester(),
     suggesters: [],
   });
@@ -398,7 +406,7 @@ void test(".menu opens controls without executing a shell command", async () => 
   const terminal = new RecordingTerminal();
   const app = new App({
     terminal,
-    topPanel: new StaticSuggester("H>", []),
+    history: new StaticSuggester("H>", []),
     files: new NullFileSuggester(),
     suggesters: [],
   });
@@ -418,7 +426,7 @@ void test("menu can hide both panels and Tab temporarily opens completion", asyn
   const files = new NullFileSuggester();
   const app = new App({
     terminal,
-    topPanel: new StaticSuggester("H>", []),
+    history: new StaticSuggester("H>", []),
     files,
     suggesters: [],
   });
@@ -442,12 +450,11 @@ void test("menu can hide both panels and Tab temporarily opens completion", asyn
 
 void test("accepting a file suggestion inserts at the prompt cursor after browsing shorter rows", async () => {
   const terminal = new RecordingTerminal();
-  const files = new StaticSuggester("F>", [".claude", ".git", ".github"]);
-  (files as any).findUniqueMatch = async () => null;
+  const files = new NullFileSuggester([".claude", ".git", ".github"]);
   const app = new App({
     terminal,
-    topPanel: new StaticSuggester("H>", []),
-    files: files as any,
+    history: new StaticSuggester("H>", []),
+    files,
     suggesters: [],
   });
   const key = (name: string) => app.handleKey({ name, sequence: "" });
@@ -462,11 +469,108 @@ void test("accepting a file suggestion inserts at the prompt cursor after browsi
   assert.equal(app.carousel.getInputCursor(), ".git x .github".length);
 });
 
+void test("Enter on folder rows preserves literal paths without executing commands", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "caroushell-literal-nav-"));
+  const originalCwd = process.cwd();
+  const terminal = new RecordingTerminal();
+  const navigator = new PathNavigatorSuggester();
+  const app = new App({
+    terminal,
+    history: new StaticSuggester("H>", []),
+    folders: navigator,
+    panels: { bottom: "folders" },
+    files: new NullFileSuggester(),
+    suggesters: [],
+  });
+  (app as any).runCommand = async () =>
+    assert.fail("folder navigation must not execute commands");
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  const names = ["my folder", "%TEMP%", "$HOME", "~", "a&b"];
+  if (process.platform !== "win32") names.push('quote"folder', "line\nbreak");
+  try {
+    for (const name of names) {
+      process.chdir(root);
+      await mkdir(path.join(root, name));
+      await navigator.getMatchingFolders("");
+      (navigator as any).latest = () => [name];
+      app.carousel.setInputBuffer("filter");
+      await key("down");
+      await key("enter");
+      assert.equal(process.cwd(), path.join(root, name));
+      assert.equal(app.carousel.getInputBuffer(), "");
+      assert.equal(app.carousel.isPromptRowSelected(), true);
+    }
+  } finally {
+    process.chdir(originalCwd);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+void test("delayed Tab completion is discarded after cursor or selection changes", async () => {
+  for (const movement of ["end", "up", null]) {
+    for (const match of ["first-completed", null]) {
+      const files = new NullFileSuggester();
+      let resolve!: (match: string | null) => void;
+      files.findUniqueMatch = () =>
+        new Promise((done) => {
+          resolve = done;
+        });
+      const history = new StaticSuggester("H>", ["history row"]);
+      const app = new App({
+        terminal: new RecordingTerminal(),
+        history,
+        files,
+        suggesters: [],
+      });
+      app.carousel.setInputBuffer("first second", 5);
+      const pending = app.handleKey({ name: "tab", sequence: "" });
+      if (movement) await app.handleKey({ name: movement, sequence: "" });
+      resolve(match);
+      await pending;
+      assert.equal(
+        app.carousel.getInputBuffer(),
+        !movement && match ? "first-completed second" : "first second",
+      );
+      if (movement) {
+        assert.equal(app.carousel.getSuggesters()[0], history);
+        assert.equal(app.carousel.isPromptRowSelected(), movement !== "up");
+        assert.equal(
+          app.carousel.getInputCursor(),
+          movement === "end" ? 12 : 5,
+        );
+      }
+    }
+  }
+});
+
+void test("menu shows unconfigured AI as unavailable", async () => {
+  const terminal = new RecordingTerminal();
+  const app = new App({
+    terminal,
+    history: new StaticSuggester("H>", []),
+    files: new NullFileSuggester(),
+    suggesters: [],
+  });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  await key("alt-m");
+  await key("enter");
+  const text = terminal
+    .lastBlock()
+    .lines.join("\n")
+    .replace(ANSI_ESCAPE_REGEX, "");
+  assert.match(text, /Folders/);
+  assert.match(text, /AI {2}\(disabled until you set apiUrl/);
+  await key("up"); // Off
+  await key("up"); // AI (not configured)
+  await key("enter");
+  assert.match(terminal.lastBlock().lines.join("\n"), /Top panel/);
+});
+
 void test("independent panel choices allow duplicates and bottom-only completion", async () => {
   const terminal = new RecordingTerminal();
   const history = new StaticSuggester("H>", ["echo hello"]);
   const files = new NullFileSuggester();
-  const app = new App({ terminal, topPanel: history, files, suggesters: [] });
+  const app = new App({ terminal, history: history, files, suggesters: [] });
   const key = (name: string) => app.handleKey({ name, sequence: "" });
   await key("alt-m");
   await key("down");

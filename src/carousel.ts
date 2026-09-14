@@ -129,10 +129,21 @@ export function wrapDisplayLine(text: string, width: number, cursor?: number) {
 /** Rows a panel shows when its suggester doesn't set rowCount. */
 const DEFAULT_PANEL_ROWS = 2;
 
+/**
+ * What Enter on a suggestion row does: run a command, or put text in place of
+ * the word at the prompt cursor and return to the prompt.
+ */
+export type SuggestionAction =
+  | { run: string }
+  | { insert: string }
+  | { changeDirectory: string };
+
 export interface Suggester {
   prefix: string;
   /** Rows this suggester's panel takes on screen. Defaults to DEFAULT_PANEL_ROWS. */
   rowCount?: number;
+  /** Enter on a non-empty row of this suggester. Defaults to running the row. */
+  accept?(row: string): SuggestionAction;
   init(): Promise<void>;
   refreshSuggestions(carousel: Carousel, maxDisplayed: number): Promise<void>;
   latest(): string[];
@@ -412,6 +423,17 @@ export class Carousel {
     this.setIndex(0);
   }
 
+  /** Put text in place of the word at the prompt cursor and select the prompt. */
+  replaceWordAtCursor(text: string) {
+    const { start, end } = this.getWordInfoAtCursor();
+    const input = this.inputBuffer;
+    this.setInputBuffer(
+      `${input.slice(0, start)}${text}${input.slice(end)}`,
+      start + text.length,
+    );
+    this.setIndex(0);
+  }
+
   private adoptSelectionIntoInput() {
     // When you highlighted a suggestion row (history/AI) and then type
     // or edit, we want to pull that selected row into the input buffer
@@ -573,6 +595,10 @@ export class Carousel {
 
   getInputCursor(): number {
     return this.cursorIndex;
+  }
+
+  getSelectedRowIndex(): number {
+    return this.index;
   }
 
   /** The word around the prompt's cursor, even while a suggestion row is selected. */

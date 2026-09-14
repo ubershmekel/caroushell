@@ -121,9 +121,13 @@ Caroushell opens an interactive prompt:
 - Use arrow keys to move between suggestions in the carousel.
 - Press `Enter` to run the highlighted command.
 - Press `Ctrl+C` to exit. `Ctrl+D` exits when the current row is empty.
-- Press `Alt+M`, or type `.menu` and press Enter, to open the Caroushell menu. Choose a top or bottom panel
-  source (History, Files, configured AI, or Off) with Up/Down and Enter. Esc
-  goes back or closes the menu. Panel choices last for the current session.
+- Press `Alt+M`, or type `.menu` and press Enter, to open the Caroushell menu.
+  Choose a top or bottom panel source (History, Files, Folders, AI, or Off) with
+  Up/Down and Enter. Esc goes back or closes the menu. Panel choices last for
+  the current session.
+- The Folders panel lists directories you can `cd` into, filtered by what you
+  type (`src/ut` looks inside `src`). Highlight one and press Enter to `cd` into
+  it; `..` goes up. Without AI configured, Folders is the default bottom panel.
 - Press `Tab` to autocomplete a file suggestion or browse files and folders with
   the arrow keys. Enter accepts a file match; Esc restores your selected panel
   layout.

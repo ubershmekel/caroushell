@@ -22,6 +22,12 @@ function updateDriveCwd(cwd = process.cwd()) {
   }
 }
 
+/** Change to a literal path without shell parsing or variable expansion. */
+export function changeDirectory(destination: string): void {
+  process.chdir(destination);
+  updateDriveCwd();
+}
+
 const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
   cd: async (args: string[]) => {
     if (args.length === 1) {
@@ -30,8 +36,7 @@ const builtInCommands: Record<string, (args: string[]) => Promise<boolean>> = {
     }
     const dest = expandPathToken(args[1]);
     try {
-      process.chdir(dest);
-      updateDriveCwd();
+      changeDirectory(dest);
     } catch (err: any) {
       process.stderr.write(`cd: ${err.message}\n`);
       return false;

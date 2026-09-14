@@ -2,86 +2,99 @@ import type { KeyEvent } from "./keyboard";
 import { colors } from "./terminal";
 
 export type Panel = "top" | "bottom";
-export type MenuSource<T> = { label: string; value: T };
-export type MenuResult<T> =
-  | { action: "close" }
-  | { action: "select"; panel: Panel; value: T }
-  | null;
+export type SuggesterKey = "history" | "files" | "folders" | "ai" | "off";
+
+/** Panel choices, in menu order. */
+const SUGGESTER_LABELS: Record<SuggesterKey, string> = {
+  history: "History",
+  files: "Files",
+  folders: "Folders",
+  ai: "AI",
+  off: "Off",
+};
+const SUGGESTER_KEYS = Object.keys(SUGGESTER_LABELS) as SuggesterKey[];
+const PANELS: Panel[] = ["top", "bottom"];
+const PANEL_LABELS: Record<Panel, string> = {
+  top: "Top panel",
+  bottom: "Bottom panel",
+};
+
+export type MenuOptions = {
+  selected: Record<Panel, SuggesterKey>;
+  /** Choices that are listed with this reason but can't be selected. */
+  disabled?: Partial<Record<SuggesterKey, string>>;
+  version?: string;
+  onSelect(panel: Panel, key: SuggesterKey): void;
+  onClose(): void;
+};
 
 /** Menu navigation and presentation; the app applies selections and owns the shell. */
-export class CaroushellMenu<T> {
+export class CaroushellMenu {
   private page: "main" | Panel = "main";
-  private index = 0;
+  /** Cursor on the main page; kept while a panel page is open so Esc returns to it. */
+  private mainIndex = 0;
+  /** Cursor on a panel page, an index into SUGGESTER_KEYS. */
+  private choiceIndex = 0;
 
-  constructor(
-    private sources: MenuSource<T>[],
-    private selected: Record<Panel, T>,
-    private version = "",
-  ) {}
+  constructor(private opts: MenuOptions) {}
 
-  private label(panel: Panel): string {
-    return (
-      this.sources.find(({ value }) => value === this.selected[panel])?.label ??
-      "Off"
-    );
-  }
-
-  handleKey({ name }: KeyEvent): MenuResult<T> {
-    const count = this.page === "main" ? 2 : this.sources.length;
+  handleKey({ name }: KeyEvent) {
     if (name === "up" || name === "down") {
-      this.index = (this.index + (name === "up" ? -1 : 1) + count) % count;
+      const step = name === "up" ? -1 : 1;
+      if (this.page === "main") {
+        this.mainIndex = wrap(this.mainIndex + step, PANELS.length);
+      } else {
+        this.choiceIndex = wrap(this.choiceIndex + step, SUGGESTER_KEYS.length);
+      }
     } else if (name === "escape" && this.page !== "main") {
-      this.index = this.page === "top" ? 0 : 1;
       this.page = "main";
     } else if (["escape", "ctrl-c", "alt-m"].includes(name)) {
-      return { action: "close" };
+      this.opts.onClose();
     } else if (name === "enter") {
-      if (this.page !== "main") {
-        return {
-          action: "select",
-          panel: this.page,
-          value: this.sources[this.index].value,
-        };
+      if (this.page === "main") {
+        this.page = PANELS[this.mainIndex];
+        this.choiceIndex = SUGGESTER_KEYS.indexOf(
+          this.opts.selected[this.page],
+        );
+        return;
       }
-      const panel = this.index === 0 ? "top" : "bottom";
-      this.page = panel;
-      this.index = Math.max(
-        0,
-        this.sources.findIndex(({ label }) => label === this.label(panel)),
-      );
+      const key = SUGGESTER_KEYS[this.choiceIndex];
+      if (!this.opts.disabled?.[key]) this.opts.onSelect(this.page, key);
     }
-    return null;
   }
 
   lines(): string[] {
     const { purple, dimmest, reset } = colors;
-    const version = this.version ? ` ${dimmest}v${this.version}${reset}` : "";
-    const title =
-      this.page === "main"
-        ? "Menu"
-        : `${this.page === "top" ? "Top" : "Bottom"} panel`;
+    const { selected, disabled, version } = this.opts;
+    const versionText = version ? ` ${dimmest}v${version}${reset}` : "";
     const page = this.page;
+    const title = page === "main" ? "Menu" : PANEL_LABELS[page];
     const entries =
-      this.page === "main"
-        ? [
-            { label: "Top panel", detail: this.label("top") },
-            { label: "Bottom panel", detail: this.label("bottom") },
-          ]
-        : this.sources.map(({ label }) => ({
-            label,
+      page === "main"
+        ? PANELS.map((panel) => ({
+            label: PANEL_LABELS[panel],
+            detail: SUGGESTER_LABELS[selected[panel]],
+          }))
+        : SUGGESTER_KEYS.map((key) => ({
+            label: SUGGESTER_LABELS[key],
             detail:
-              page !== "main" && label === this.label(page) ? "✓ current" : "",
+              key === selected[page] ? "✓ current" : (disabled?.[key] ?? ""),
           }));
+    const activeIndex = page === "main" ? this.mainIndex : this.choiceIndex;
     return [
-      ` ${purple}🎠 Caroushell${reset}${version}  ${reset}/ ${title}${reset}`,
+      ` ${purple}🎠 Caroushell${reset}${versionText}  ${reset}/ ${title}${reset}`,
       "",
       ...entries.map(({ label, detail }, index) => {
-        const active = index === this.index;
+        const active = index === activeIndex;
         return ` ${active ? purple + "❯" : " "} ${reset}${label}${reset}${detail ? `  ${reset}${detail}${reset}` : ""}`;
       }),
       "",
-      ` ${purple}↑↓${reset} ${reset}Choose${reset}   ${purple}Enter${reset} ${reset}Select${reset}   ${purple}Esc${reset} ${reset}${this.page === "main" ? "Close" : "Back"}${reset}`,
+      ` ${purple}↑↓${reset} ${reset}Choose${reset}   ${purple}Enter${reset} ${reset}Select${reset}   ${purple}Esc${reset} ${reset}${page === "main" ? "Close" : "Back"}${reset}`,
       ` ${reset}Changes apply to this session${reset}`,
     ];
   }
+}
+
+function wrap(index: number, count: number): number {
+  return (index + count) % count;
 }

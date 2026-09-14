@@ -9,8 +9,9 @@ in `dist/` and dependencies in `node_modules/` are intentionally omitted.
   onboarding, config loading, and app startup.
 - [../src/app.ts](../src/app.ts): Main controller that wires keyboard input,
   carousel rendering, suggesters, and command execution together.
-- [../src/menu.ts](../src/menu.ts): Caroushell menu navigation and styled rows;
-  returns actions for the app to apply without executing shell commands.
+- [../src/menu.ts](../src/menu.ts): Caroushell menu navigation and styled rows
+  over a fixed list of suggester keys; reports selections to the app through
+  callbacks. While open it receives the app's keys instead of the prompt.
 - [../src/carousel.ts](../src/carousel.ts): Core prompt/suggestions state
   machine plus rendering helpers for the top, prompt, and bottom rows.
 - [../src/terminal.ts](../src/terminal.ts): Low-level terminal painter that
@@ -23,6 +24,9 @@ in `dist/` and dependencies in `node_modules/` are intentionally omitted.
   history on disk and turns recent matching commands into top-panel suggestions.
 - [../src/file-suggester.ts](../src/file-suggester.ts): Lists directory entries
   and offers file/path completions near the cursor.
+- [../src/path-navigator-suggester.ts](../src/path-navigator-suggester.ts):
+  Lists folders filtered by the prompt input; Enter on a row makes the app `cd`
+  into it.
 - [../src/ai-suggester.ts](../src/ai-suggester.ts): Calls an OpenAI-compatible
   chat endpoint to generate debounced AI command suggestions.
 - [../src/config.ts](../src/config.ts): Resolves config paths, reads TOML

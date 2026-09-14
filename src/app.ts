@@ -4,25 +4,37 @@ import {
   Carousel,
   NullSuggester,
   Suggester,
+  SuggestionAction,
   wrapDisplayLine,
 } from "./carousel";
 import { HistorySuggester } from "./history-suggester";
 import { FileSuggester } from "./file-suggester";
-import { runUserCommand } from "./spawner";
+import { PathNavigatorSuggester } from "./path-navigator-suggester";
+import { changeDirectory, runUserCommand } from "./spawner";
 import { logLine } from "./logs";
-import { CaroushellMenu } from "./menu";
+import { CaroushellMenu, Panel, SuggesterKey } from "./menu";
 import { getVersion } from "./version";
 
+/** Tab completion inserts file rows, so Files must say how Enter accepts them. */
 type FileSuggesterLike = Suggester & {
+  accept(row: string): SuggestionAction;
   findUniqueMatch(prefix: string): Promise<string | null>;
 };
+
+/** Receives keys: the prompt normally, the menu while it's open. */
+type KeyTarget = { handleKey(evt: KeyEvent): void | Promise<void> };
 
 type AppDeps = {
   terminal?: Terminal;
   keyboard?: Keyboard;
-  topPanel?: Suggester;
-  bottomPanel?: Suggester;
+  history?: Suggester;
   files?: FileSuggesterLike;
+  folders?: Suggester;
+  /** The configured AI suggester; the menu shows AI as disabled without it. */
+  ai?: Suggester;
+  /** Starting panels. Defaults to History on top and AI (or Off) below. */
+  panels?: Partial<Record<Panel, SuggesterKey>>;
+  /** Suggesters to init and notify about commands. Defaults to all of them. */
   suggesters?: Suggester[];
   promptLine0?: () => string;
 };
@@ -37,9 +49,10 @@ export class App {
   keyboard: Keyboard;
   carousel: Carousel;
 
-  private history: Suggester;
-  private bottomSuggester: Suggester;
   private files: FileSuggesterLike;
+  /** Every panel choice by key; "ai" is an Off suggester when AI isn't configured. */
+  private panelSuggesters: Record<SuggesterKey, Suggester>;
+  private aiConfigured: boolean;
   private suggesters: Suggester[];
   private handlers: Partial<
     Record<KeyEvent["name"], (evt: KeyEvent) => void | Promise<void>>
@@ -50,42 +63,48 @@ export class App {
    * arrive, so key handlers stay responsive even when e.g. the AI is slow.
    */
   private queueUpdateSuggestions: () => void;
-  /** The "Off" choice in the menu: a suggester that shows no rows. */
-  private off = new NullSuggester();
   /**
-   * The panels the user chose in the menu (History by default on top).
-   * These are the "home" panels that Tab completion temporarily replaces.
+   * The panels the user chose in the menu. These are the "home" panels that
+   * Tab completion temporarily replaces.
    */
-  private selectedTop: Suggester;
-  private selectedBottom: Suggester;
+  private selected: Record<Panel, SuggesterKey>;
   /**
    * Which panel is temporarily showing file completions after Tab, or null
    * when both panels show the user's selection. Usually "top"; "bottom" when
    * the top panel is Off but the bottom one isn't, so files appear where the
    * user is already looking.
    */
-  private completionPanel: "top" | "bottom" | null = null;
-  /** The open settings menu (Alt+M or `.menu`); while set it receives all keys. */
-  private menu: CaroushellMenu<Suggester> | null = null;
+  private completionPanel: Panel | null = null;
+  private promptKeys: KeyTarget = {
+    handleKey: async (evt) => {
+      await this.handlers[evt.name]?.(evt);
+    },
+  };
+  /** The prompt, or the settings menu (Alt+M or `.menu`) while it's open. */
+  private keyTarget: KeyTarget = this.promptKeys;
   private onKeyHandler?: (evt: KeyEvent) => void;
   private onProcessExit = () => this.end();
 
   constructor(deps: AppDeps = {}) {
     this.terminal = deps.terminal ?? new Terminal();
     this.keyboard = deps.keyboard ?? new Keyboard();
-    this.history = deps.topPanel ?? new HistorySuggester();
-    this.bottomSuggester = deps.bottomPanel ?? new NullSuggester();
     this.files = deps.files ?? new FileSuggester();
-    this.selectedTop = this.history;
-    this.selectedBottom = this.bottomSuggester;
-    this.suggesters = deps.suggesters ?? [
-      this.history,
-      this.bottomSuggester,
-      this.files,
-    ];
+    this.aiConfigured = !!deps.ai;
+    this.panelSuggesters = {
+      history: deps.history ?? new HistorySuggester(),
+      files: this.files,
+      folders: deps.folders ?? new PathNavigatorSuggester(),
+      ai: deps.ai ?? new NullSuggester(),
+      off: new NullSuggester(),
+    };
+    this.selected = {
+      top: deps.panels?.top ?? "history",
+      bottom: deps.panels?.bottom ?? (this.aiConfigured ? "ai" : "off"),
+    };
+    this.suggesters = deps.suggesters ?? Object.values(this.panelSuggesters);
     this.carousel = new Carousel({
-      top: this.history,
-      bottom: this.bottomSuggester,
+      top: this.panelSuggesters[this.selected.top],
+      bottom: this.panelSuggesters[this.selected.bottom],
       terminal: this.terminal,
       promptLine0: deps.promptLine0,
     });
@@ -126,13 +145,20 @@ export class App {
         this.queueUpdateSuggestions();
       },
       enter: async () => {
-        if (this.tryAcceptHighlightedFileSuggestion()) {
+        const suggester = this.carousel.getCurrentRowSuggester();
+        if (!suggester) {
+          await this.enterOnPrompt();
           return;
         }
-        if (this.carousel.isPromptRowSelected()) {
-          await this.enterOnPrompt();
+        const row = this.carousel.getCurrentRow();
+        const action = (row && suggester.accept?.(row)) || { run: row.trim() };
+        if ("insert" in action) {
+          this.carousel.replaceWordAtCursor(action.insert);
+          this.restorePanels();
+          this.render();
+          this.queueUpdateSuggestions();
         } else {
-          await this.enterOnSuggestion();
+          await this.confirmAction(action);
         }
       },
       char: (evt) => {
@@ -255,21 +281,7 @@ export class App {
 
   /** Dispatch a recognized key and wait for any asynchronous handler to finish. */
   async handleKey(evt: KeyEvent) {
-    if (this.menu) {
-      const result = this.menu.handleKey(evt);
-      if (result?.action === "select") {
-        if (result.panel === "top") this.selectedTop = result.value;
-        else this.selectedBottom = result.value;
-        this.restorePanels();
-      }
-      if (result) this.closeMenu();
-      this.render();
-      return;
-    }
-    const fn = this.handlers[evt.name];
-    if (fn) {
-      await fn(evt);
-    }
+    await this.keyTarget.handleKey(evt);
   }
 
   private render() {
@@ -335,19 +347,25 @@ export class App {
       this.openMenu();
       return;
     }
-    await this.confirmCommandRun(cmd);
-  }
-
-  private async enterOnSuggestion() {
-    const cmd = this.carousel.getCurrentRow().trim();
-    await this.confirmCommandRun(cmd);
+    await this.confirmAction({ run: cmd });
   }
 
   /** Clear submitted input, run the command, then redraw and refresh suggestions. */
-  private async confirmCommandRun(cmd: string) {
+  private async confirmAction(
+    action: Exclude<SuggestionAction, { insert: string }>,
+  ) {
     this.carousel.setInputBuffer("", 0);
     this.restorePanels();
-    await this.runCommand(cmd);
+    if ("changeDirectory" in action) {
+      try {
+        changeDirectory(action.changeDirectory);
+      } catch (err: any) {
+        this.terminal.renderBlock([`cd: ${err.message}`]);
+        this.terminal.write("\n");
+      }
+    } else {
+      await this.runCommand(action.run);
+    }
     // Carousel should point to the prompt
     this.carousel.resetIndex();
     // After arbitrary output, reset render block tracking
@@ -370,78 +388,70 @@ export class App {
     const wordInfo = this.carousel.getWordInfoAtCursor();
     if (!wordInfo.prefix) return false;
     const input = this.carousel.getInputBuffer();
+    const cursor = this.carousel.getInputCursor();
+    const selectedRow = this.carousel.getSelectedRowIndex();
     const match = await this.files.findUniqueMatch(wordInfo.prefix);
-    if (this.menu || input !== this.carousel.getInputBuffer()) return true;
+    if (this.keyTarget !== this.promptKeys) return true;
+    if (input !== this.carousel.getInputBuffer()) return true;
+    if (cursor !== this.carousel.getInputCursor()) return true;
+    if (selectedRow !== this.carousel.getSelectedRowIndex()) return true;
     if (!match) return false;
-    const current = this.carousel.getRow(0);
-    const before = current.slice(0, wordInfo.start);
-    const after = current.slice(wordInfo.end);
-    const next = `${before}${match}${after}`;
-    this.carousel.setInputBuffer(next, wordInfo.start + match.length);
+    this.carousel.replaceWordAtCursor(match);
     this.restorePanels();
     this.render();
     this.queueUpdateSuggestions();
     return true;
-  }
-
-  private tryAcceptHighlightedFileSuggestion(): boolean {
-    // After ENTER on a file suggestion, we want to place the match at the cursor
-    const currentSuggester = this.carousel.getCurrentRowSuggester();
-    if (currentSuggester !== this.files) return false;
-    const suggestion = this.carousel.getCurrentRow();
-    if (!suggestion) return false;
-    const wordInfo = this.carousel.getWordInfoAtCursor();
-    const current = this.carousel.getRow(0);
-    const before = current.slice(0, wordInfo.start);
-    const after = current.slice(wordInfo.end);
-    const nextInput = `${before}${suggestion}${after}`;
-    this.carousel.setInputBuffer(nextInput, wordInfo.start + suggestion.length);
-    this.carousel.resetIndex();
-    this.restorePanels();
-    this.render();
-    this.queueUpdateSuggestions();
-    return true;
-  }
-
-  /** Suggesters the menu offers for each panel. AI is listed only when configured. */
-  private sources() {
-    const choices = [
-      { label: "History", value: this.history },
-      { label: "Files", value: this.files },
-    ];
-    if (!(this.bottomSuggester instanceof NullSuggester)) {
-      choices.push({ label: "AI", value: this.bottomSuggester });
-    }
-    choices.push({ label: "Off", value: this.off });
-    return choices;
-  }
-
-  /** Show the settings menu in place of the carousel, dropping any Tab completion first. */
-  private openMenu() {
-    this.restorePanels();
-    this.menu = new CaroushellMenu(
-      this.sources(),
-      { top: this.selectedTop, bottom: this.selectedBottom },
-      getVersion(),
-    );
-    this.carousel.setOverlay(() => this.menu!.lines());
-    this.render();
-  }
-
-  /** Hide the menu and refresh suggestions, since the panels may have changed. */
-  private closeMenu() {
-    this.menu = null;
-    this.carousel.setOverlay(null);
-    this.queueUpdateSuggestions();
   }
 
   /**
-   * Leave Tab completion mode: put the user's menu-selected suggesters back
-   * into both panels. Safe to call when not in completion mode.
+   * Show the settings menu in place of the carousel, dropping any Tab
+   * completion first. Keys go to the menu until it closes.
    */
+  private openMenu() {
+    this.restorePanels();
+    const menu = new CaroushellMenu({
+      selected: { ...this.selected },
+      disabled: this.aiConfigured
+        ? {}
+        : { ai: "(disabled until you set apiUrl, apiKey, model in config)" },
+      version: getVersion(),
+      onSelect: (panel, key) => {
+        this.selected[panel] = key;
+        this.closeMenu();
+      },
+      onClose: () => this.closeMenu(),
+    });
+    this.keyTarget = {
+      handleKey: (evt) => {
+        menu.handleKey(evt);
+        this.render();
+      },
+    };
+    this.carousel.setOverlay(() => menu.lines());
+    this.render();
+  }
+
+  /** Hand keys back to the prompt and show the (possibly changed) panels. */
+  private closeMenu() {
+    this.keyTarget = this.promptKeys;
+    this.carousel.setOverlay(null);
+    this.restorePanels();
+    this.queueUpdateSuggestions();
+  }
+
+  /** Put the suggesters for the selected keys, plus any Tab completion, into the carousel. */
+  private applyPanels() {
+    const suggesterFor = (panel: Panel) =>
+      panel === this.completionPanel
+        ? this.files
+        : this.panelSuggesters[this.selected[panel]];
+    this.carousel.setPanels(suggesterFor("top"), suggesterFor("bottom"));
+  }
+
+  /** Leave Tab completion mode. Safe to call when not in completion mode. */
   private restorePanels() {
     this.completionPanel = null;
-    this.carousel.setPanels(this.selectedTop, this.selectedBottom);
+    this.applyPanels();
   }
 
   /**
@@ -450,15 +460,9 @@ export class App {
    */
   private showFileSuggestions() {
     if (this.completionPanel) return;
-    this.completionPanel =
-      this.selectedTop instanceof NullSuggester &&
-      !(this.selectedBottom instanceof NullSuggester)
-        ? "bottom"
-        : "top";
-    this.carousel.setPanels(
-      this.completionPanel === "top" ? this.files : this.selectedTop,
-      this.completionPanel === "bottom" ? this.files : this.selectedBottom,
-    );
+    const { top, bottom } = this.selected;
+    this.completionPanel = top === "off" && bottom !== "off" ? "bottom" : "top";
+    this.applyPanels();
   }
 
   private async preBroadcastCommand(cmd: string) {
