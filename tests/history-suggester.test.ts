@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 import { HistorySuggester } from "../src/history-suggester";
+import { makeTempDirectory } from "./helpers/temp-directory";
 
 void test("descriptionForAi lists newest history entries first", async (ctx) => {
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "caroushell-history-"),
-  );
+  const tempDir = await makeTempDirectory("caroushell-history-");
   ctx.after(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });

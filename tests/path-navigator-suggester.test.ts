@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 
 import { PathNavigatorSuggester } from "../src/path-navigator-suggester";
+import { makeTempDirectory } from "./helpers/temp-directory";
 
 void test("navigator lists folders only, prefix matches first, and nested queries", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "caroushell-nav-"));
+  const root = await makeTempDirectory("caroushell-nav-");
   const originalCwd = process.cwd();
   try {
     await mkdir(path.join(root, "src", "utils"), { recursive: true });

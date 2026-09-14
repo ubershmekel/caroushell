@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 import { runHelloNewUserFlow } from "../src/hello-new-user";
+import { makeTempDirectory } from "./helpers/temp-directory";
 
 function makeTerminalStub(answers: string[]) {
   let index = 0;
@@ -26,9 +26,7 @@ function makeTerminalStub(answers: string[]) {
 }
 
 void test("onboarding saves prompt config even when AI setup is skipped", async (ctx) => {
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "caroushell-onboarding-"),
-  );
+  const tempDir = await makeTempDirectory("caroushell-onboarding-");
   ctx.after(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
@@ -49,9 +47,7 @@ void test("onboarding saves prompt config even when AI setup is skipped", async 
 });
 
 void test("onboarding writes prompt template alongside AI settings", async (ctx) => {
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "caroushell-onboarding-"),
-  );
+  const tempDir = await makeTempDirectory("caroushell-onboarding-");
   ctx.after(async () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });

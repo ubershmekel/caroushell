@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { accessSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { mkdir, readFile, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 import { runUserCommand } from "../src/spawner";
+import { makeTempDirectory } from "./helpers/temp-directory";
 
 const tmpSuffix = "caroushell-test";
 
 void test("multiline commands execute every line in order, including after a builtin", async () => {
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   try {
     process.chdir(base);
     await runUserCommand(
@@ -30,7 +31,7 @@ void test("multiline commands execute every line in order, including after a bui
 void test("Windows multiline scripts preserve variables and execute directory listings", async (t) => {
   if (process.platform !== "win32") return t.skip("cmd script behavior");
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   try {
     process.chdir(base);
     await runUserCommand(
@@ -47,12 +48,6 @@ void test("Windows multiline scripts preserve variables and execute directory li
     await rm(base, { recursive: true, force: true });
   }
 });
-
-async function makeTempDirectory() {
-  // On macOS, the temp directory can be under /var, a symlink to /private/var.
-  // process.cwd() resolves symlinks, so compare it to the resolved fixture path.
-  return realpath(await mkdtemp(path.join(tmpdir(), tmpSuffix)));
-}
 
 async function captureStdout<T>(fn: () => Promise<T>) {
   const original = process.stdout.write;
@@ -84,7 +79,7 @@ function findAlternateDrive(): string | null {
 
 void test("cd changes directories and reports cwd", async () => {
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   const child = path.join(base, "child");
   await mkdir(child);
   try {
@@ -101,7 +96,7 @@ void test("cd changes directories and reports cwd", async () => {
 
 void test("cd ~ changes to the home directory", async () => {
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   try {
     process.chdir(base);
     await runUserCommand("cd ~");
@@ -114,7 +109,7 @@ void test("cd ~ changes to the home directory", async () => {
 
 void test("pushd swaps directories using the stack", async () => {
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   const child = path.join(base, "child");
   await mkdir(child);
   try {
@@ -133,7 +128,7 @@ void test("pushd swaps directories using the stack", async () => {
 
 void test("popd moves to next directory in stack", async () => {
   const original = process.cwd();
-  const base = await makeTempDirectory();
+  const base = await makeTempDirectory(tmpSuffix);
   const child = path.join(base, "child");
   await mkdir(child);
   try {

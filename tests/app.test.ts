@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { App } from "../src/app";
@@ -11,6 +10,7 @@ import type { Carousel, Suggester } from "../src/carousel";
 import { Keyboard, keySequence } from "../src/keyboard";
 import { PathNavigatorSuggester } from "../src/path-navigator-suggester";
 import { Terminal } from "../src/terminal";
+import { makeTempDirectory } from "./helpers/temp-directory";
 
 const ANSI_ESCAPE_REGEX = /\x1b\[[0-9;]*m/g;
 
@@ -470,7 +470,7 @@ void test("accepting a file suggestion inserts at the prompt cursor after browsi
 });
 
 void test("Enter on folder rows preserves literal paths without executing commands", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "caroushell-literal-nav-"));
+  const root = await makeTempDirectory("caroushell-literal-nav-");
   const originalCwd = process.cwd();
   const terminal = new RecordingTerminal();
   const navigator = new PathNavigatorSuggester();
