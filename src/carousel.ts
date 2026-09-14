@@ -187,6 +187,12 @@ export class Carousel {
   private index = 0;
   private inputBuffer: string = "";
   private cursorIndex = 0;
+  /**
+   * The prompt's cursor, kept while a suggestion row is selected. Browsing
+   * clamps cursorIndex to each row's length, which must not move the point
+   * where a file suggestion gets inserted.
+   */
+  private promptCursorIndex = 0;
   private terminal: Terminal;
   private promptLine0Getter: () => string;
 
@@ -217,21 +223,26 @@ export class Carousel {
   }
 
   up() {
-    this.index += 1;
-    const topLength = this.top.latest().length;
-    if (this.index >= topLength) {
-      this.index = topLength;
-    }
+    this.setIndex(Math.min(this.index + 1, this.top.latest().length));
     this.clampCursorToActiveRow();
   }
 
   down() {
-    this.index -= 1;
-    const bottomLength = this.bottom.latest().length;
-    if (-this.index >= bottomLength) {
-      this.index = -bottomLength;
-    }
+    this.setIndex(Math.max(this.index - 1, -this.bottom.latest().length));
     this.clampCursorToActiveRow();
+  }
+
+  /** Change the selected row, saving the prompt cursor on leave and restoring it on return. */
+  private setIndex(next: number) {
+    if (this.index === 0 && next !== 0) {
+      this.promptCursorIndex = this.cursorIndex;
+    } else if (this.index !== 0 && next === 0) {
+      this.cursorIndex = Math.min(
+        this.promptCursorIndex,
+        this.inputBuffer.length,
+      );
+    }
+    this.index = next;
   }
 
   getRow(rowIndex: number): string {
@@ -390,6 +401,7 @@ export class Carousel {
       0,
       Math.min(cursorPos, this.inputBuffer.length),
     );
+    this.promptCursorIndex = this.cursorIndex;
   }
 
   getInputBuffer(): string {
@@ -397,8 +409,7 @@ export class Carousel {
   }
 
   resetIndex() {
-    this.index = 0;
-    this.cursorIndex = Math.min(this.cursorIndex, this.inputBuffer.length);
+    this.setIndex(0);
   }
 
   private adoptSelectionIntoInput() {
@@ -407,7 +418,7 @@ export class Carousel {
     if (this.index === 0) return;
     const current = this.getRow(this.index);
     this.setInputBuffer(current, Math.min(this.cursorIndex, current.length));
-    this.index = 0;
+    this.setIndex(0);
   }
 
   private getActiveRowLength(): number {
@@ -549,7 +560,7 @@ export class Carousel {
   clearInput() {
     this.adoptSelectionIntoInput();
     this.setInputBuffer("", 0);
-    this.index = 0;
+    this.setIndex(0);
   }
 
   hasInput(): boolean {
@@ -564,12 +575,14 @@ export class Carousel {
     return this.cursorIndex;
   }
 
+  /** The word around the prompt's cursor, even while a suggestion row is selected. */
   getWordInfoAtCursor() {
-    let start = this.cursorIndex;
+    const cursor = this.index === 0 ? this.cursorIndex : this.promptCursorIndex;
+    let start = cursor;
     while (start > 0 && !this.isWhitespace(this.inputBuffer[start - 1])) {
       start -= 1;
     }
-    let end = this.cursorIndex;
+    let end = cursor;
     const len = this.inputBuffer.length;
     while (end < len && !this.isWhitespace(this.inputBuffer[end])) {
       end += 1;
@@ -577,7 +590,7 @@ export class Carousel {
     return {
       start,
       end,
-      prefix: this.inputBuffer.slice(start, this.cursorIndex),
+      prefix: this.inputBuffer.slice(start, cursor),
       word: this.inputBuffer.slice(start, end),
     };
   }
@@ -714,8 +727,7 @@ export class Carousel {
     if (this.top === suggester) return;
     this.top = suggester;
     if (this.index > 0) {
-      const topLength = this.top.latest().length;
-      this.index = Math.min(this.index, topLength);
+      this.setIndex(Math.min(this.index, this.top.latest().length));
     }
   }
 
@@ -727,9 +739,9 @@ export class Carousel {
     this.bottomRowCount = bottom.rowCount ?? DEFAULT_PANEL_ROWS;
     // Keep the selection where possible, only clamping it to the new panels.
     if (this.index > 0) {
-      this.index = Math.min(this.index, this.top.latest().length);
+      this.setIndex(Math.min(this.index, this.top.latest().length));
     } else if (this.index < 0) {
-      this.index = Math.max(this.index, -this.bottom.latest().length);
+      this.setIndex(Math.max(this.index, -this.bottom.latest().length));
     }
   }
 

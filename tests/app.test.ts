@@ -440,6 +440,28 @@ void test("menu can hide both panels and Tab temporarily opens completion", asyn
   assert.match(terminal.lastBlock().lines[0], /Caroushell/);
 });
 
+void test("accepting a file suggestion inserts at the prompt cursor after browsing shorter rows", async () => {
+  const terminal = new RecordingTerminal();
+  const files = new StaticSuggester("F>", [".claude", ".git", ".github"]);
+  (files as any).findUniqueMatch = async () => null;
+  const app = new App({
+    terminal,
+    topPanel: new StaticSuggester("H>", []),
+    files: files as any,
+    suggesters: [],
+  });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  app.carousel.setInputBuffer(".git x ");
+  await key("tab");
+  await key("up");
+  await key("up"); // ".git" is shorter than the prompt and clamps the cursor.
+  await key("up");
+  assert.equal(app.carousel.getCurrentRow(), ".github");
+  await key("enter");
+  assert.equal(app.carousel.getInputBuffer(), ".git x .github");
+  assert.equal(app.carousel.getInputCursor(), ".git x .github".length);
+});
+
 void test("independent panel choices allow duplicates and bottom-only completion", async () => {
   const terminal = new RecordingTerminal();
   const history = new StaticSuggester("H>", ["echo hello"]);
