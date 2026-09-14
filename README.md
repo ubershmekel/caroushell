@@ -3,29 +3,58 @@
 [![npm version](https://img.shields.io/npm/v/caroushell.svg)](https://www.npmjs.com/package/caroushell)
 [![npm downloads](https://img.shields.io/npm/dm/caroushell.svg)](https://www.npmjs.com/package/caroushell)
 
-Caroushell is kind of like `bash` but you see history and AI suggestions as you
-type.
+Caroushell makes the terminal a little more fun: see your command history as you
+type and hop between folders with the arrow keys. Pick a command or folder,
+press `Enter`, and keep moving.
+
+If you want, you can get AI command suggestions too.
+
+## Try it out
+
+With Node.js 18 or newer installed, run:
+
+```bash
+npm install -g caroushell
+caroushell
+```
+
+Or give it a spin with NPX:
+
+```bash
+npx caroushell
+```
+
+On first launch, answer `n` when asked about AI auto-complete to jump straight
+into history and folder navigation. No API key required. You can always
+[set up AI suggestions later](#setup).
 
 ## Features
 
-- The top panel of the carousel shows history.
-- The bottom panel of the carousel shows AI-generated command suggestions.
+- See matching commands from your history above the prompt as you type.
+- Browse matching folders below the prompt and jump into them with `Enter`.
 - Go up and down the carousel with arrow keys.
 - Press `Enter` to run the highlighted command.
+- Optionally connect an AI provider for command suggestions.
 
 ## UI
 
-The UI layout looks like this:
+Without AI, history appears above the prompt and folders appear below it. For
+example, typing `pro` might look like this:
 
 ```
-⌛history2
-⌛history1
-$> YOU TYPE YOUR SHELL COMMANDS HERE
-🤖ai suggestion1
-🤖ai suggestion2
+⌛git checkout prototype
+⌛npm run build -- --profile
+$> pro
+📁projects
+📁prototypes
 ```
 
-Here's an example using a comment to get AI autocompletion for ffmpeg:
+Arrow up to reuse a command, or arrow down to highlight `projects` and press
+`Enter` to move into that folder. Type part of a folder name to narrow the list,
+or a path like `src/ut` to find folders inside `src`.
+
+With optional AI suggestions enabled, you can also use a comment to ask for
+ffmpeg autocompletion:
 
 ```
 ⌛echo 123
@@ -42,10 +71,14 @@ It would look like this:
 ## Setup
 
 - Node.js 18 or newer.
-- On first launch Caroushell will prompt you for an OpenAI-compatible endpoint
-  URL, API key, and model name, then store them in `~/.caroushell/config.toml`.
-- You can also create the file manually:
+- On first launch, Caroushell helps you choose a prompt and asks whether you
+  want AI auto-complete. Choose `n` to use history and folder navigation without
+  AI.
+- If you choose AI, it prompts for an OpenAI-compatible endpoint URL, API key,
+  and model name, then stores them in `~/.caroushell/config.toml`.
 - Logs are at `~/.caroushell/logs` for easy troubleshooting.
+
+To enable AI later, add your provider settings to `~/.caroushell/config.toml`:
 
 ```toml
 apiUrl = "https://openrouter.ai/api/v1"
@@ -97,27 +130,11 @@ prompt = "{hostname} {short-directory} $>"
 directories to their first letter. For example, `/home/user/projects/my-app`
 becomes `/h/u/p/my-app`.
 
-## Installation
-
-Install globally (recommended):
-
-```bash
-npm install -g caroushell
-caroushell
-```
-
-Or run it with NPX:
-
-```bash
-npx caroushell
-```
-
 ## Usage
 
 Caroushell opens an interactive prompt:
 
-- Type to update the suggestions immediately and trigger refreshed history/AI
-  results.
+- Type to update matching history and folders, or AI suggestions if enabled.
 - Use arrow keys to move between suggestions in the carousel.
 - Press `Enter` to run the highlighted command.
 - Press `Ctrl+C` to exit. `Ctrl+D` exits when the current row is empty.
