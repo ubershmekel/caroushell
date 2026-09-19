@@ -35,6 +35,7 @@ into history and folder navigation. No API key required. You can always
 - Go up and down the carousel with arrow keys.
 - Press `Enter` to run the highlighted command.
 - Optionally connect an AI provider for command suggestions.
+- Tested on MacOS, Windows, and Linux. Commands are sent to the underlying OS shell for compatibility.
 
 ## UI
 
