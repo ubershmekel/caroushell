@@ -24,6 +24,8 @@ const KEY_DEFINITIONS: Record<string, KeySpec[]> = {
   "alt-m": [
     { sequence: "\u001bm", meta: true },
     { sequence: "\u001bM", meta: true },
+    // macOS Option+M types µ unless the terminal treats Option as Meta
+    { sequence: "µ", meta: true },
   ],
   down: [{ sequence: "\u001b[B" }],
   right: [{ sequence: "\u001b[C" }],

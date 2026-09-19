@@ -173,3 +173,9 @@ void test("Alt-M is recognized across chunk boundaries", () => {
     }
   }
 });
+
+void test("macOS Option-M without Option-as-Meta is recognized as Alt-M", () => {
+  const events = capture(["µ"]);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].name, "alt-m");
+});
