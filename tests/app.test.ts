@@ -23,7 +23,7 @@ class RecordingTerminal extends Terminal {
   }[] = [];
   writes: string[] = [];
 
-  renderBlock(
+  printTemporary(
     lines: string[],
     cursorRow?: number,
     cursorCol?: number,
@@ -500,6 +500,40 @@ void test("Enter on folder rows preserves literal paths without executing comman
       assert.equal(app.carousel.getInputBuffer(), "");
       assert.equal(app.carousel.isPromptRowSelected(), true);
     }
+  } finally {
+    process.chdir(originalCwd);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+void test("Enter on a folder row redraws the carousel in place", async () => {
+  const root = await makeTempDirectory("caroushell-nav-redraw-");
+  const originalCwd = process.cwd();
+  const terminal = new RecordingTerminal();
+  const permanent: string[][] = [];
+  terminal.printPermanent = (lines) => {
+    permanent.push(lines);
+  };
+  const navigator = new PathNavigatorSuggester();
+  const app = new App({
+    terminal,
+    history: new StaticSuggester("H>", ["some history"]),
+    folders: navigator,
+    panels: { bottom: "folders" },
+    files: new NullFileSuggester(),
+    suggesters: [],
+  });
+  const key = (name: string) => app.handleKey({ name, sequence: "" });
+  try {
+    process.chdir(root);
+    await mkdir(path.join(root, "child"));
+    await navigator.getMatchingFolders("");
+    (navigator as any).latest = () => ["child"];
+    await key("down");
+    await key("enter");
+    assert.equal(process.cwd(), path.join(root, "child"));
+    // A permanent print would leave the old carousel in the scrollback.
+    assert.deepEqual(permanent, []);
   } finally {
     process.chdir(originalCwd);
     await rm(root, { recursive: true, force: true });

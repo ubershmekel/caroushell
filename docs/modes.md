@@ -22,7 +22,8 @@ state from making arrows insert fragments like `OA` into the prompt.
 
 `reset()` restores prompt settings. It does not invoke the shell's `reset`
 command, clear the screen, reset colors, or reset every terminal mode.
-`resetBlockTracking()` separately forgets the rows managed by the renderer.
+Separately, `printPermanent()` leaves its lines in the scrollback so the next
+`printTemporary()` starts below them instead of redrawing over them.
 
 ## Why bracketed paste is enabled
 

@@ -691,7 +691,7 @@ export class Carousel {
         (line) => wrapDisplayLine(line, width).lines,
       );
       // No text input in the overlay, so a blinking cursor would just be noise.
-      this.terminal.renderBlock(lines, 0, 0, { hideCursor: true });
+      this.terminal.printTemporary(lines, 0, 0, { hideCursor: true });
       return;
     }
     logLine("Rendering carousel");
@@ -746,7 +746,7 @@ export class Carousel {
         }
       }
     }
-    this.terminal.renderBlock(lines, cursorRow, cursorCol);
+    this.terminal.printTemporary(lines, cursorRow, cursorCol);
   }
 
   setTopSuggester(suggester: Suggester) {

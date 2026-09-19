@@ -299,17 +299,14 @@ export class App {
     const { yellow, reset } = colors;
     if (!cmd) {
       // Log an empty line
-      this.terminal.renderBlock([">"]);
-      this.terminal.write("\n");
+      this.terminal.printPermanent([">"]);
       return;
     }
 
-    // Log command in yellow
+    // Log command in yellow; its output starts on the next line
     const width = process.stdout.columns || 80;
     const lines = wrapDisplayLine(`${yellow}$ ${cmd}${reset}`, width).lines;
-    this.terminal.renderBlock(lines);
-    // Ensure command output starts on the next line
-    this.terminal.write("\n");
+    this.terminal.printPermanent(lines);
 
     this.terminal.release();
     this.keyboard.disableCapture();
@@ -360,16 +357,13 @@ export class App {
       try {
         changeDirectory(action.changeDirectory);
       } catch (err: any) {
-        this.terminal.renderBlock([`cd: ${err.message}`]);
-        this.terminal.write("\n");
+        this.terminal.printPermanent([`cd: ${err.message}`]);
       }
     } else {
       await this.runCommand(action.run);
     }
     // Carousel should point to the prompt
     this.carousel.resetIndex();
-    // After arbitrary output, reset render block tracking
-    this.terminal.resetBlockTracking();
     // Render the prompt, without this we'd wait for the suggestions to call render
     // and it would appear slow
     this.render();
@@ -379,7 +373,7 @@ export class App {
   /** Clear the carousel, release input and terminal state, and exit successfully. */
   private exit() {
     // Clear terminal contents before shutting down to leave a clean screen.
-    this.terminal.renderBlock([]);
+    this.terminal.printTemporary([]);
     this.end();
     process.exit(0);
   }

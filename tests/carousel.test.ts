@@ -18,7 +18,7 @@ function narrowCarousel(t: TestContext, width = 10, panels = false) {
   const terminal = new Terminal();
   t.mock.method(
     terminal,
-    "renderBlock",
+    "printTemporary",
     (lines: string[], cursorRow: number, cursorCol: number) => {
       block = {
         lines: lines.map((line) => line.replace(/\x1b\[[0-9;]*m/g, "")),
@@ -198,7 +198,7 @@ for (const panel of ["top", "bottom"] as const) {
     const row = panel === "top" ? 0 : 2;
     assert.equal(lastBlock().lines[row], "H>abcdefghij … +16 chars");
     // Inspect the actual terminal output as well as the uncolored layout.
-    const render = terminal.renderBlock as typeof terminal.renderBlock & {
+    const render = terminal.printTemporary as typeof terminal.printTemporary & {
       mock: { calls: { arguments: [string[], number, number] }[] };
     };
     assert.ok(

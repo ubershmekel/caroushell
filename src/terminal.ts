@@ -94,8 +94,11 @@ export class Terminal {
     this.out.write("\x1b[?25h");
   }
 
-  // Render a block of lines by clearing previous block (if any) and writing fresh
-  renderBlock(
+  /**
+   * Draw lines that the next print replaces, such as the carousel. Clears the
+   * previous temporary lines (if any) and writes these in their place.
+   */
+  printTemporary(
     lines: string[],
     cursorRow?: number,
     cursorCol?: number,
@@ -153,9 +156,15 @@ export class Terminal {
     this.cursorCol = safeColumn;
   }
 
-  // When we have printed arbitrary output that is not managed by renderBlock,
-  // reset internal line tracking so the next render starts fresh.
-  resetBlockTracking() {
+  /**
+   * Replace the temporary lines with lines that stay in the scrollback, such
+   * as an echoed command. The next print starts on the row below them, so
+   * command output that follows is kept too.
+   */
+  printPermanent(lines: string[]) {
+    if (!this.canWrite()) return;
+    this.printTemporary(lines);
+    this.write("\n");
     this.activeRows = 0;
     this.cursorRow = 0;
     this.cursorCol = 0;

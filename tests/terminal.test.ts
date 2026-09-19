@@ -30,12 +30,12 @@ void test("reset restores prompt modes and release disables bracketed paste", ()
   assert.equal(out.chunks.join(""), "\x1b[?2004l\x1b[?25h");
 });
 
-void test("renderBlock hides the cursor while repainting", async () => {
+void test("printTemporary hides the cursor while repainting", async () => {
   const out = new RecordingWritable();
   const terminal = new Terminal();
   (terminal as any).out = out;
 
-  terminal.renderBlock(["$> g"], 0, 4);
+  terminal.printTemporary(["$> g"], 0, 4);
 
   const output = out.chunks.join("");
   const hideIndex = output.indexOf("\x1b[?25l");
@@ -54,11 +54,11 @@ void test("wrapped rows start at column zero and are cleared when input shrinks"
   const terminal = new Terminal();
   (terminal as any).out = out;
 
-  terminal.renderBlock(["$> abcdefg", "hijklmnopq", "rs"], 2, 2);
+  terminal.printTemporary(["$> abcdefg", "hijklmnopq", "rs"], 2, 2);
   assert.ok(out.chunks.join("").includes("$> abcdefg\r\nhijklmnopq\r\nrs"));
 
   out.chunks = [];
-  terminal.renderBlock(["$> a"], 0, 4);
+  terminal.printTemporary(["$> a"], 0, 4);
   const output = out.chunks.join("");
   assert.ok(output.includes("\x1b[2A"));
   assert.ok(output.indexOf("\x1b[2A") < output.indexOf("$> a"));
