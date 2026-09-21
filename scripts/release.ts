@@ -60,6 +60,38 @@ function ensureCleanGitState() {
   }
 }
 
+function git(args: string) {
+  return execSync(`git ${args}`, { encoding: "utf8" }).trim();
+}
+
+function ensureUpToDateWithUpstream() {
+  const branch = git("rev-parse --abbrev-ref HEAD");
+  let remote: string;
+  try {
+    remote = git(`config --get branch.${branch}.remote`);
+  } catch {
+    console.error(
+      `Branch "${branch}" has no upstream remote. Push it once before releasing.`,
+    );
+    process.exit(1);
+  }
+
+  runStep("git", ["fetch", remote, branch]);
+
+  const behind = git(`rev-list --count HEAD..${remote}/${branch}`);
+  if (behind !== "0") {
+    console.error(
+      `Branch "${branch}" is ${behind} commit(s) behind ${remote}/${branch}.`,
+    );
+    console.error(
+      "Pull first, otherwise the version commit cannot be pushed and its tag is left stranded.",
+    );
+    process.exit(1);
+  }
+
+  return { branch, remote };
+}
+
 function runStep(command: string, args: string[]) {
   console.log(`\n$ ${command} ${args.join(" ")}`);
   const result = spawnSync(command, args, {
@@ -76,14 +108,31 @@ function runStep(command: string, args: string[]) {
 }
 
 ensureCleanGitState();
+const { branch, remote } = ensureUpToDateWithUpstream();
 
 runStep(npmCommand, ["run", "lint"]);
 runStep(npmCommand, ["run", "test"]);
 runStep(npmCommand, ["version", versionArgument]);
 runStep(npmCommand, ["run", "build"]);
-runStep("git", ["push"]);
-runStep("git", ["push", "--tags"]);
+
+const tag = git("tag --points-at HEAD")
+  .split("\n")
+  .find((line) => line.startsWith("v"));
+if (!tag) {
+  console.error("Could not find the version tag that `npm version` created.");
+  process.exit(1);
+}
+
+// Push the commit and its tag together. A partial push would publish nothing
+// now and, worse, release the stranded tag whenever the next release pushes.
+runStep("git", [
+  "push",
+  "--atomic",
+  remote,
+  `HEAD:refs/heads/${branch}`,
+  `refs/tags/${tag}`,
+]);
 
 console.log(
-  "\nRelease prepared locally. Push the version commit and v-tag to trigger the npm publish workflow.",
+  `\nPushed ${tag} to ${remote}/${branch}. The npm publish workflow takes it from here.`,
 );
